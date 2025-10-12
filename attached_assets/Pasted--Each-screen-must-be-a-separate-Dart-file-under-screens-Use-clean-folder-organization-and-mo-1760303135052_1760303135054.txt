@@ -1,0 +1,95 @@
+- Each screen must be a separate Dart file under `/screens`.
+- Use clean folder organization and modular navigation.
+- Include comments in each screen explaining its purpose.
+
+---
+
+📱 **ALL SCREENS TO DESIGN (with navigation):**
+
+### 🔐 COMMON
+1. **Login Screen** – Secure login for all users  
+2. **Get Started / Role Selection** – Choose role: Student, Supervisor, Committee, Queue Handler  
+
+---
+
+### 🧑‍💼 PROJECT COMMITTEE
+3. **Committee Dashboard** – Overview of all projects, groups, and supervisors  
+4. **Student Selection** – Assign or view student groups  
+5. **Group Detail** – View project group info and members  
+6. **Allocation Screen** – Assign supervisors/reviewers  
+7. **Group Tasks & Progress** – View progress summaries per group  
+8. **Assign Task** – Create new task for a group  
+9. **Task Detail** – Full details of selected task  
+10. **Group List** – List all registered project groups  
+11. **Mark Attendance** – Manage attendance for group members  
+12. **Meeting Detail** – Meeting information page  
+13. **Meeting List** – Overview of all meetings  
+14. **Attendance Detail** – Detailed attendance view per student  
+15. **Individual Task List** – Task view for individual student  
+
+---
+
+### 🎓 STUDENT MODULE
+16. **Student Dashboard** – Overview of progress, grades, and tasks  
+17. **Meeting List** – List of upcoming and completed meetings  
+18. **FYP-1 Task List** – Tasks for semester 1  
+19. **FYP-2 Task List** – Tasks for semester 2  
+20. **Task Detail** – Feedback and grading view  
+21. **Task List** – Combined list of all assigned tasks  
+
+---
+
+### 👨‍🏫 SUPERVISOR MODULE
+22. **Supervisor Dashboard** – Overview of assigned groups and tasks  
+23. **Group Detail** – Show group info, tasks, and progress  
+24. **Meeting Detail** – Review meeting info  
+25. **Meeting List** – Overview of all meetings  
+26. **Task Detail** – Evaluate or mark student task  
+27. **Group Tasks** – All group tasks listed  
+28. **Assign Task** – Create a new group task  
+
+---
+
+### 🧾 QUEUE HANDLER MODULE
+29. **Queue Dashboard** – View all queued items (tasks, meetings, approvals)  
+30. **Queue Detail** – Detail view for a specific queue item  
+31. **Queue Assignment** – Assign queued item to a supervisor/committee  
+32. **Queue Analytics** – Charts and metrics (average time, queue length)  
+33. **Notifications Center** – Updates about queue activities  
+
+---
+
+⚙️ FUNCTIONAL MOCKUP REQUIREMENTS:
+- Each screen should have working navigation routes (Navigator.push / pushNamed).
+- Create a **Bottom Navigation Bar** with tabs for:
+  - Dashboard
+  - Meetings
+  - Tasks
+  - Queue
+  - Profile
+- Use **AppBar** for top titles and actions.
+- Add placeholder data (mock names, tasks, charts, cards, etc.)
+- Include **charts** (use `fl_chart` or placeholder visuals) on analytics pages.
+- Add icons using `Icons` library.
+- Light & dark themes toggle available in Settings.
+- Use smooth animated transitions (`PageRouteBuilder` or `AnimatedSwitcher`).
+
+---
+
+💡 MOCKUP GOAL:
+This is a **UI/UX mockup only** — it does not require real Firebase or backend logic.  
+All screens should be **visually complete**, navigable, and styled according to the Instagram-inspired blue & white theme.
+
+---
+
+📦 DELIVERABLES:
+- Full Flutter code (compilable in Replit or VS Code)
+- 33 Screens fully designed with navigation
+- Working Dark & Light mode
+- Consistent theme and typography
+- Organized code and folder structure
+- Zero dependency or runtime errors
+
+---
+
+Now, generate this complete Flutter project with all the screens, navigation setup, dark/light theme toggle, and professional Instagram-inspired design.
