@@ -1,103 +1,183 @@
-import { MobileLayout } from "@/components/MobileLayout";
+import StudentLayout from "../student/StudentLayout";
 import { AppBar } from "@/components/AppBar";
-import { Calendar, Clock, MapPin, Users, FileText } from "lucide-react";
+import { Calendar, Clock, MapPin, MessageCircleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { useLocation, useParams } from "wouter";
+import { useState, useEffect } from "react";
+import axios from "axios";
 
 export default function MeetingDetail() {
-  const attendees = [
-    { name: "Ali Hassan", status: "present" },
-    { name: "Ahmed Khan", status: "present" },
-    { name: "Sara Ahmad", status: "absent" },
-  ];
+  const [, setLocation] = useLocation();
+  const [file, setFile] = useState<File | null>(null);
+  const { id, type, groupId } = useParams();
+  
+  const [meeting, setMeeting] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    fetchMeetingDetail();
+  }, [id]);
+
+  const fetchMeetingDetail = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get(`http://localhost/ProgressMonitoringProject/api/committee-meetings/schedule/${id}`);
+      setMeeting(res.data);
+    } catch (err) {
+      console.error("Failed to fetch meeting detail:", err);
+      setMeeting(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file) {
+      alert("Please select a file first");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("scheduleId", id || "");
+
+    try {
+      setUploading(true);
+      await axios.post(
+        "http://localhost/ProgressMonitoringProject/api/committee-meetings/upload-ppt",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      alert("File uploaded successfully ✅");
+      setFile(null);
+      fetchMeetingDetail();
+    } catch (error) {
+      console.error("Upload failed:", error);
+      alert("Upload failed ❌");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <StudentLayout>
+        <AppBar title="Meeting Details" showBack />
+        <div className="p-6 text-center text-muted-foreground">Loading meeting details...</div>
+      </StudentLayout>
+    );
+  }
+
+  if (!meeting) {
+    return (
+      <StudentLayout>
+        <AppBar title="Meeting Details" showBack />
+        <div className="p-6 text-center text-muted-foreground">No meeting data found.</div>
+      </StudentLayout>
+    );
+  }
 
   return (
-    <MobileLayout>
+    <StudentLayout>
       <AppBar title="Meeting Details" showBack />
-      
+
       <div className="p-4 space-y-4">
         <div className="bg-card border border-card-border rounded-xl p-4">
-          <h2 className="text-lg font-semibold mb-4">Progress Review Meeting</h2>
-          
+          <h2 className="text-lg font-semibold mb-4">
+            {meeting.title}
+          </h2>
+
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <Calendar className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">December 15, 2024</span>
+              <span className="text-sm">
+                {new Date(meeting.date).toDateString()}
+              </span>
             </div>
+
             <div className="flex items-center gap-3">
               <Clock className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">10:00 AM - 11:00 AM</span>
+              <span className="text-sm">
+                {meeting.time}
+              </span>
             </div>
+
             <div className="flex items-center gap-3">
               <MapPin className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">Room 301, CS Block</span>
+              <span className="text-sm">
+                {meeting.location || "Not Specified"}
+              </span>
             </div>
+
             <div className="flex items-center gap-3">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">5 participants</span>
+              <MessageCircleIcon className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm">
+                {meeting.description || "No description provided."}
+              </span>
             </div>
           </div>
         </div>
 
-        <div className="bg-card border border-card-border rounded-xl p-4">
-          <h3 className="font-semibold mb-2">Agenda</h3>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex gap-2">
-              <span>•</span>
-              <span>Review current project progress</span>
-            </li>
-            <li className="flex gap-2">
-              <span>•</span>
-              <span>Discuss upcoming deadlines</span>
-            </li>
-            <li className="flex gap-2">
-              <span>•</span>
-              <span>Address any blockers or issues</span>
-            </li>
-          </ul>
-        </div>
-
-        <div className="bg-card border border-card-border rounded-xl p-4">
-          <h3 className="font-semibold mb-3">Attendance</h3>
-          <div className="space-y-2">
-            {attendees.map((attendee, index) => (
-              <div key={index} className="flex items-center justify-between py-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-medium text-primary">
-                    {attendee.name.charAt(0)}
-                  </div>
-                  <span className="text-sm">{attendee.name}</span>
-                </div>
-                <Badge
-                  className={
-                    attendee.status === "present"
-                      ? "bg-chart-2 text-white"
-                      : "bg-muted text-muted-foreground"
-                  }
+        {/* Upload File Section */}
+        {meeting.isFileRequired && (
+          <div className="bg-card border border-card-border rounded-xl p-4 space-y-4">
+            <h3 className="font-semibold text-md text-foreground">Upload Presentation PPT</h3>
+            
+            {meeting.filePath ? (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg space-y-2">
+                <p className="text-sm text-emerald-700 font-medium">✓ A presentation file is currently uploaded.</p>
+                <a
+                  href={`http://localhost/ProgressMonitoringProject${meeting.filePath}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-sm text-primary hover:underline font-semibold"
                 >
-                  {attendee.status}
-                </Badge>
+                  Download / View PPT File
+                </a>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-card border border-card-border rounded-xl p-4">
-          <div className="flex items-start gap-3">
-            <FileText className="w-5 h-5 text-primary mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-semibold mb-1">Meeting Notes</h3>
-              <p className="text-sm text-muted-foreground">
-                Team discussed the implementation of the database schema. Progress is on track. Next milestone: Complete API development by Dec 20.
+            ) : (
+              <p className="text-sm text-amber-600 font-medium bg-amber-50 border border-amber-200 rounded-lg p-3">
+                ⚠️ No presentation file uploaded yet. Please upload your presentation PPT below.
               </p>
+            )}
+
+            <div className="space-y-3">
+              <input
+                type="file"
+                accept=".ppt,.pptx,.pdf"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    setFile(e.target.files[0]);
+                  }
+                }}
+                className="w-full border rounded p-2 text-sm bg-background"
+              />
+
+              <Button
+                className="w-full font-semibold"
+                onClick={handleUpload}
+                disabled={uploading}
+              >
+                {uploading ? "Uploading File..." : "Upload File"}
+              </Button>
             </div>
           </div>
-        </div>
+        )}
 
-        <Button className="w-full" data-testid="button-join-meeting">
-          Join Meeting
+        <Button
+          variant="outline"
+          className="w-full font-semibold"
+          onClick={() => setLocation(`/queue/assignment/${type}/${groupId}`)}
+        >
+          View Queue
         </Button>
       </div>
-    </MobileLayout>
+    </StudentLayout>
   );
 }

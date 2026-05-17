@@ -10,15 +10,15 @@ export default function QueueAssignmentScreen() {
 
   const progressGroups = [
     {
-      name: "Group A",
-      topic: "Database Schema Implementation",
+      name: "Group 1",
+      topic: "Mockups and Erd",
       time: "10:00 AM - 10:30 AM",
       members: 5,
       status: "in-progress",
     },
     {
-      name: "Group B",
-      topic: "Frontend API Integration",
+      name: "Group 2",
+      topic: "Mockups and Erd",
       time: "10:30 AM - 11:00 AM",
       members: 4,
       status: "in-progress",
@@ -27,15 +27,15 @@ export default function QueueAssignmentScreen() {
 
   const pendingGroups = [
     {
-      name: "Group C",
-      topic: "Mobile UI Review",
+      name: "Group 3",
+      topic: "Mockups and Erd",
       time: "Waiting",
       members: 6,
       status: "pending",
     },
     {
-      name: "Group D",
-      topic: "Testing and QA Discussion",
+      name: "Group 4",
+      topic: "Mockups and Erd",
       time: "Waiting",
       members: 3,
       status: "pending",

@@ -1,49 +1,57 @@
-import { MobileLayout } from "@/components/MobileLayout";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import CommitteeLayout from "../committee/CommitteeLayout";
 import { AppBar } from "@/components/AppBar";
 import { GroupCard } from "@/components/GroupCard";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
+
+const API_BASE = "http://localhost/ProgressMonitoringProject/api";
 
 export default function GroupList() {
+  const {activeFyp}=useParams();
   const [searchQuery, setSearchQuery] = useState("");
+  const [groups, setGroups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [, setLocation] = useLocation();
 
-  const groups = [
-    {
-      groupName: "Group Alpha",
-      projectTitle: "AI-Based Student Management System",
-      members: ["Ali Hassan", "Ahmed Khan", "Sara Ahmad"],
-      supervisor: "Dr. Khan",
-      progress: 68,
-    },
-    {
-      groupName: "Group Beta",
-      projectTitle: "Real-time Traffic Monitoring using IoT",
-      members: ["Usman Ali", "Fatima Noor"],
-      supervisor: "Dr. Ahmed",
-      progress: 45,
-    },
-    {
-      groupName: "Group Gamma",
-      projectTitle: "E-Commerce Platform with AR Features",
-      members: ["Hassan Ali", "Zainab Khan", "Omar Farooq"],
-      supervisor: "Dr. Sara",
-      progress: 82,
-    },
-  ];
+  useEffect(() => {
+    fetchGroups();
+  }, []);
 
-  const filteredGroups = groups.filter((g) =>
-    g.groupName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    g.projectTitle.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const fetchGroups = async () => {
+    try {
+      const res = await axios.get(
+        `${API_BASE}/committee-meetings/groups/approved/${activeFyp}`
+      );
+
+      setGroups(res.data || []);
+    } catch (err) {
+      console.error("Failed to load groups", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ FIXED FILTER
+  const filteredGroups = groups.filter((g) => {
+    const title = g.projectTitle || "";
+    const groupName = String(g.groupName || "");
+
+    return (
+      title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      groupName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   return (
-    <MobileLayout>
-      <AppBar title="All Groups" showBack />
-      
-      <div className="p-4 space-y-4">
+    <CommitteeLayout>
+      <AppBar title="Approved Groups" showBack />
+
+      <div className="p-6 space-y-6">
+
+        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -51,25 +59,52 @@ export default function GroupList() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
-            data-testid="input-search-group"
           />
         </div>
 
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Project Groups</h2>
-          <span className="text-sm text-muted-foreground">{filteredGroups.length} groups</span>
-        </div>
+        {/* Loading */}
+        {loading && (
+          <p className="text-sm text-muted-foreground">
+            Loading groups...
+          </p>
+        )}
 
-        <div className="space-y-3">
-          {filteredGroups.map((group, index) => (
-            <GroupCard
-              key={index}
-              {...group}
-              onClick={() => setLocation("/committee/group-detail")}
-            />
-          ))}
-        </div>
+        {/* Groups List */}
+        {!loading && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold">Total Groups</h2>
+              <span className="text-sm text-muted-foreground">
+                {filteredGroups.length} groups
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {filteredGroups.map((group, index) => (
+                <GroupCard
+                  key={index}
+                  groupName={`Group ${group.groupName}`}
+                  projectTitle={group.projectTitle || "No Project Assigned"}
+                  supervisor={group.supervisor || "Not Assigned"}
+                  members={group.members || []}
+                  progress={0}
+                  onClick={() =>
+                    setLocation(
+                      `/committee/group-detail/${group.groupName}`
+                    )
+                  }
+                />
+              ))}
+            </div>
+
+            {filteredGroups.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center">
+                No groups found.
+              </p>
+            )}
+          </div>
+        )}
       </div>
-    </MobileLayout>
+    </CommitteeLayout>
   );
 }

@@ -1,6 +1,39 @@
-node_modules
-dist
-.DS_Store
-server/public
+# Dependency directories
+node_modules/
+jspm_packages/
+web_modules/
+
+# Build and production
+dist/
+build/
+server/public/
 vite.config.ts.*
 *.tar.gz
+
+# IDEs and editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln.docstates
+.vs/
+.local/
+@/
+
+# Visual Studio build outputs
+[Dd]ebug/
+[Rr]elease/
+bin/
+obj/
+x64/
+x86/
+
+# NuGet Packages
+packages/
+*.nuget.props
+*.nuget.targets
+
+# OS metadata
+.DS_Store
+Thumbs.db

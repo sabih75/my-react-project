@@ -1,68 +1,161 @@
-import { MobileLayout } from "@/components/MobileLayout";
-import { AppBar } from "@/components/AppBar";
-import { TaskCard } from "@/components/TaskCard";
-import { Filter } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { TaskCard } from "@/components/TaskCard";
+import { AppBar } from "@/components/AppBar";
+import StudentLayout from "./StudentLayout";
+import { useLocation, useParams, useSearch } from "wouter";
+import axios from "axios";
+
+const API_BASE = "http://localhost/ProgressMonitoringProject/api";
+
+// Types
+type TaskStatus = "pending" | "completed" | "overdue";
+type TaskPriority = "high" | "medium" | "low";
+
+interface Task {
+  id: number;
+  title: string;
+  dueDate: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  progress?:number; // ✅ optional if API doesn't provide;
+  assignedType?: string;
+}
 
 export default function TaskList() {
+  const [selectedTab, setSelectedTab] = useState("individual");
   const [, setLocation] = useLocation();
 
-  const pendingTasks = [
-    { title: "Complete Chapter 3 - Methodology", dueDate: "Due: Dec 20, 2024", status: "pending" as const, priority: "high" as const },
-    { title: "Submit Progress Report", dueDate: "Due: Dec 18, 2024", status: "pending" as const, priority: "medium" as const },
-    { title: "Prepare Presentation Slides", dueDate: "Due: Dec 22, 2024", status: "pending" as const, priority: "low" as const },
-  ];
+  const [individualTasks, setIndividualTasks] = useState<Task[]>([]);
+  const [groupTasks, setGroupTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const completedTasks = [
-    { title: "Review Literature Citations", dueDate: "Completed: Dec 10, 2024", status: "completed" as const, priority: "medium" as const },
-    { title: "Design Database Schema", dueDate: "Completed: Dec 5, 2024", status: "completed" as const, priority: "high" as const },
-  ];
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const studentId = user?.id;
+
+ const {  groupId } = useParams();
+  useEffect(() => {
+    alert(`Student ID: ${studentId}, Group ID: ${groupId}`);
+    if (groupId && studentId) {
+      fetchTasks();
+    }
+  }, []);
+
+  const fetchTasks = async () => {
+    try {
+      alert("hehe");
+      setLoading(true);
+
+      const res = await axios.get(
+        `${API_BASE}/supervisor/StudentTasks/${groupId}/${studentId}`
+      );
+
+      const data = res.data;
+
+      const formatted: Task[] = data.map((t: any) => {
+        // ✅ Determine task status
+        let status: TaskStatus = "pending";
+
+        if (t.taskStatus?.toLowerCase() === "completed") {
+          status = "completed";
+        } else if (t.dueDate && new Date(t.dueDate) < new Date()) {
+          status = "overdue";
+        }
+
+        return {
+          id: t.id,
+          title: t.title,
+          dueDate: t.dueDate
+            ? new Date(t.dueDate).toDateString()
+            : "No due date",
+
+          status,
+          priority: "medium",
+
+          // ✅ Correct fields from API
+          progress: t.progress,
+          assignedType: t.AssignedType,
+        };
+      });
+
+      // ✅ Split tasks
+      setIndividualTasks(
+        formatted.filter((t) => t.assignedType === "Individual")
+      );
+
+      setGroupTasks(
+        formatted.filter((t) => t.assignedType === "Group")
+      );
+
+    } catch (err) {
+      console.error("Task fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCardClick = (task: Task) => {
+    setLocation(`/student/task-detail/${task.id}`);
+  };
 
   return (
-    <MobileLayout>
-      <AppBar
-        title="All Tasks"
-        actions={
-          <Button size="icon" variant="ghost" data-testid="button-filter">
-            <Filter className="w-5 h-5" />
-          </Button>
-        }
-      />
-      
+    <StudentLayout>
+      <AppBar title="Tasks" />
+
       <div className="p-4">
-        <Tabs defaultValue="pending" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="pending" data-testid="tab-pending">
-              Pending ({pendingTasks.length})
-            </TabsTrigger>
-            <TabsTrigger value="completed" data-testid="tab-completed">
-              Completed ({completedTasks.length})
-            </TabsTrigger>
+        <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+          <TabsList className="grid grid-cols-2 w-full mb-4">
+            <TabsTrigger value="individual">Individual Tasks</TabsTrigger>
+            <TabsTrigger value="group">Group Tasks</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="pending" className="space-y-2">
-            {pendingTasks.map((task, index) => (
-              <TaskCard
-                key={index}
-                {...task}
-                onClick={() => setLocation("/student/task-detail")}
-              />
-            ))}
+          {/* INDIVIDUAL TASKS */}
+          <TabsContent value="individual">
+            <div className="space-y-3">
+              {loading ? (
+                <p>Loading...</p>
+              ) : individualTasks.length === 0 ? (
+                <p>No individual tasks found</p>
+              ) : (
+                individualTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    title={task.title}
+                    dueDate={task.dueDate}
+                    status={task.status}
+                    priority={task.priority}
+                    progress={task.progress}  // ✅ optional if UI supports
+                    onClick={() => handleCardClick(task)}
+                  />
+                ))
+              )}
+            </div>
           </TabsContent>
 
-          <TabsContent value="completed" className="space-y-2">
-            {completedTasks.map((task, index) => (
-              <TaskCard
-                key={index}
-                {...task}
-                onClick={() => setLocation("/student/task-detail")}
-              />
-            ))}
+          {/* GROUP TASKS */}
+          <TabsContent value="group">
+            <div className="space-y-3">
+              {loading ? (
+                <p>Loading...</p>
+              ) : groupTasks.length === 0 ? (
+                <p>No group tasks found</p>
+              ) : (
+                groupTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    title={task.title}
+                    dueDate={task.dueDate}
+                    status={task.status}
+                    priority={task.priority}
+                    progress={task.progress}
+                    onClick={() => handleCardClick(task)}
+                  />
+                ))
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
-    </MobileLayout>
+    </StudentLayout>
   );
 }

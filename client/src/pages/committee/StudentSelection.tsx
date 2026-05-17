@@ -3,28 +3,63 @@ import { AppBar } from "@/components/AppBar";
 import { Search, UserPlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
+import CommitteeHeadLayout from "../Director/ComitteeHeadLayoutScreen";
+import axios from "axios";
+import CommitteeLayout from "./CommitteeLayout";
+const API_BASE = "http://localhost/ProgressMonitoringProject/api";
 
 export default function StudentSelection() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [, setLocation] = useLocation();
+  const [students, setStudents] = useState<any[]>([]);
+  const [fypType,SetFypType]=useState("FYP-1");
+  const [showUnassignedOnly, setShowUnassignedOnly] = useState(false);
+useEffect(() => {
+  
+  fetchStudents();
+   
+}, []);
 
-  const students = [
-    { id: 1, name: "Ali Hassan", regno: "2018-ARID-0996", group: "Group Alpha" },
-    { id: 2, name: "Ahmed Khan", regno: "2018-ARID-1102", group: "Group Alpha" },
-    { id: 3, name: "Sara Ahmad", regno: "2018-ARID-1053", group: "Group Beta" },
-    { id: 4, name: "Usman Ali", regno: "2018-ARID-1073", group: "Unassigned" },
-    { id: 5, name: "Fatima Noor", regno: "2018-ARID-1030", group: "Unassigned" },
-  ];
+const fetchStudents = async () => {
+  try {
+  const userType=localStorage.getItem("type");
+    if(userType){
+const type = JSON.parse(userType);
 
-  const filteredStudents = students.filter(s => 
+
+   
+    const res = await axios.get(`${API_BASE}/committee-meetings/all-students-with-group/${type}`);
+    setStudents(res.data);
+    }
+  } catch (error) {
+    console.error("Failed to fetch students", error);
+  }
+};
+  
+ const filteredStudents = students
+  .filter((s) =>
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.regno.includes(searchQuery)
+    s.regNum.includes(searchQuery)
+  )
+  .filter((s) =>
+    showUnassignedOnly ? s.group === 0 : true
   );
+  const handleSelect = (student: any) => {
+    if (student.group === 0) {
+      // navigate to group assignment page and pass student info
+setLocation(`/group-assignment/${student.regNum}`);
+      localStorage.setItem("selectedStudent", JSON.stringify(student));
+    } else {
+      alert("This student is already assigned to a group.");
+    }
+  };
 
   return (
-    <MobileLayout>
+    <CommitteeLayout>
       <AppBar title="Student Selection" showBack />
-      
+
       <div className="p-4 space-y-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -36,10 +71,23 @@ export default function StudentSelection() {
             data-testid="input-search-student"
           />
         </div>
+        <div className="flex items-center justify-between">
+  <h2 className="font-semibold">All Students</h2>
+
+  <Button
+    size="sm"
+    variant={showUnassignedOnly ? "default" : "outline"}
+    onClick={() => setShowUnassignedOnly(!showUnassignedOnly)}
+  >
+    {showUnassignedOnly ? "Unassigned Only" : "All Students"}
+  </Button>
+</div>
 
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">All Students</h2>
-          <span className="text-sm text-muted-foreground">{filteredStudents.length} students</span>
+          <span className="text-sm text-muted-foreground">
+            {filteredStudents.length} students
+          </span>
         </div>
 
         <div className="space-y-2">
@@ -52,21 +100,36 @@ export default function StudentSelection() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-medium text-primary">
-                      {student.name.split(' ').map(n => n[0]).join('')}
+                      {student.name
+                        .split(" ")
+                        .map((n:any) => n[0])
+                        .join("")}
                     </div>
                     <div>
                       <h3 className="font-semibold text-sm">{student.name}</h3>
-                      <p className="text-xs text-muted-foreground">{student.regno}</p>
+                      <p className="text-xs text-muted-foreground">RegNum:{student.regNum}</p>
+                      <p className="text-xs text-muted-foreground">Cgpa:{student.cgpa}</p>
+                      
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Group: <span className={student.group === "Unassigned" ? "text-chart-3" : "text-chart-2"}>{student.group}</span>
+                    Group:{" "}
+                    <span
+                      className={
+                        student.group === 0
+                          ? "text-chart-3"
+                          : "text-chart-2"
+                      }
+                    >
+                      {student.group}
+                    </span>
                   </p>
                 </div>
                 <Button
                   size="icon"
                   variant="ghost"
-                  data-testid={`button-select-${student.id}`}
+                  data-testid={`button-select-${student.regNum}`}
+                  onClick={() => handleSelect(student)}
                 >
                   <UserPlus className="w-4 h-4" />
                 </Button>
@@ -75,6 +138,6 @@ export default function StudentSelection() {
           ))}
         </div>
       </div>
-    </MobileLayout>
+    </CommitteeLayout>
   );
 }

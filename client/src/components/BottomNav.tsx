@@ -22,7 +22,6 @@ export function BottomNav() {
     { icon: Home, label: "Dashboard", path: getDashboardPath(), testId: "nav-dashboard" },
     { icon: Calendar, label: "Meetings", path: `/${userRole}/meetings`, testId: "nav-meetings" },
     { icon: CheckSquare, label: "Tasks", path: `/${userRole}/tasks`, testId: "nav-tasks" },
-    { icon: ListOrdered, label: "Queue", path: `/${userRole}/queue`, testId: "nav-queue" },
     { icon: User, label: "Profile", path: `/${userRole}/profile`, testId: "nav-profile" },
   ];
 

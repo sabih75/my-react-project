@@ -1,69 +1,219 @@
-import { MobileLayout } from "@/components/MobileLayout";
+import { useEffect, useState } from "react";
+import axios from "axios";
 import { AppBar } from "@/components/AppBar";
 import { MeetingCard } from "@/components/MeetingCard";
-import { Plus } from "lucide-react";
+import { Filter, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
+import StudentLayout from "../student/StudentLayout";
+import { setMeetingData } from "./meetingStore";
 
 export default function MeetingList() {
+  const { type, groupId } = useParams();
   const [, setLocation] = useLocation();
 
-  const meetings = [
-    {
-      title: "Progress Review Meeting",
-      date: "Dec 15, 2024",
-      time: "10:00 AM",
-      location: "Room 301, CS Block",
-      attendees: 5,
-    },
-    {
-      title: "Project Discussion",
-      date: "Dec 18, 2024",
-      time: "2:00 PM",
-      location: "Conference Room A",
-      attendees: 8,
-    },
-    {
-      title: "Final Presentation Prep",
-      date: "Dec 22, 2024",
-      time: "11:00 AM",
-      location: "Auditorium",
-      attendees: 12,
-    },
-  ];
+  const [activeTab, setActiveTab] = useState<"Committee" | "Supervisor">("Committee");
+  const [committeeData, setCommitteeData] = useState<{ upcoming: any[]; today: any[]; past: any[] }>({ upcoming: [], today: [], past: [] });
+  const [supervisorData, setSupervisorData] = useState<{ upcoming: any[]; today: any[]; past: any[] }>({ upcoming: [], today: [], past: [] });
+
+  useEffect(() => {
+    fetchCommitteeMeetings();
+    fetchSupervisorMeetings();
+  }, [type, groupId]);
+
+  const fetchCommitteeMeetings = async () => {
+    try {
+      const [upcomingRes, todayRes, pastRes] = await Promise.all([
+        axios.get(`http://localhost/ProgressMonitoringProject/api/committee-meetings/meetings?type=${type}&groupId=${groupId}&filter=upcoming`),
+        axios.get(`http://localhost/ProgressMonitoringProject/api/committee-meetings/meetings?type=${type}&groupId=${groupId}&filter=today`),
+        axios.get(`http://localhost/ProgressMonitoringProject/api/committee-meetings/meetings?type=${type}&groupId=${groupId}&filter=past`),
+      ]);
+
+      setCommitteeData({
+        upcoming: upcomingRes.data || [],
+        today: todayRes.data || [],
+        past: pastRes.data || [],
+      });
+    } catch (err) {
+      console.error("Failed to fetch committee meetings:", err);
+    }
+  };
+
+  const fetchSupervisorMeetings = async () => {
+    try {
+      if (!groupId) return;
+      const res = await axios.get(`http://localhost/ProgressMonitoringProject/api/supervisor/group-meetings/${groupId}`);
+      const allMeetings = res.data || [];
+
+      const now = new Date();
+      // Reset hours to compare purely by date day
+      const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const upcoming: any[] = [];
+      const today: any[] = [];
+      const past: any[] = [];
+
+      allMeetings.forEach((m: any) => {
+        const mDate = new Date(m.Date);
+        const mDateOnly = new Date(mDate.getFullYear(), mDate.getMonth(), mDate.getDate());
+
+        // Map it to match the MeetingCard expected props
+        const mappedMeeting = {
+          scheduleId: m.Id,
+          title: m.Title || "Supervisor Meeting",
+          date: m.Date,
+          time: m.Time,
+          location: m.Venue || "TBD",
+          isSupervisor: true
+        };
+
+        if (mDateOnly.getTime() === todayDate.getTime()) {
+          today.push(mappedMeeting);
+        } else if (mDateOnly > todayDate) {
+          upcoming.push(mappedMeeting);
+        } else {
+          past.push(mappedMeeting);
+        }
+      });
+
+      setSupervisorData({ upcoming, today, past });
+    } catch (err) {
+      console.error("Failed to fetch supervisor meetings:", err);
+    }
+  };
+
+  const currentData = activeTab === "Committee" ? committeeData : supervisorData;
 
   return (
-    <MobileLayout>
+    <StudentLayout>
       <AppBar
         title="Meetings"
         actions={
-          <Button size="icon" variant="ghost" data-testid="button-add-meeting">
-            <Plus className="w-5 h-5" />
+          <Button size="icon" variant="ghost">
+            <Filter className="w-5 h-5" />
           </Button>
         }
       />
-      
-      <div className="p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Upcoming</h2>
-          <span className="text-sm text-muted-foreground">{meetings.length} meetings</span>
+
+      <div className="p-4 space-y-4 pb-20 max-w-3xl mx-auto">
+        
+        {/* Meeting Type Toggle */}
+        <div className="flex bg-muted rounded-lg p-1 w-full sm:w-fit mx-auto mb-6">
+          <button
+            onClick={() => setActiveTab("Committee")}
+            className={`flex-1 sm:flex-none px-6 py-2 text-sm rounded-md transition-all ${
+              activeTab === "Committee"
+                ? "bg-background shadow-sm text-primary font-medium"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Committee
+          </button>
+          <button
+            onClick={() => setActiveTab("Supervisor")}
+            className={`flex-1 sm:flex-none px-6 py-2 text-sm rounded-md transition-all ${
+              activeTab === "Supervisor"
+                ? "bg-background shadow-sm text-primary font-medium"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Supervisor
+          </button>
         </div>
 
-        {meetings.map((meeting, index) => (
-          <MeetingCard
-            key={index}
-            {...meeting}
-            onClick={() => setLocation("/meeting-detail")}
-          />
-        ))}
+        {/* Upcoming */}
+        <div>
+          <h2 className="text-lg font-semibold mb-2">
+            Upcoming ({currentData.upcoming.length})
+          </h2>
 
-        <div className="pt-4">
-          <h2 className="text-lg font-semibold mb-3">Past Meetings</h2>
-          <div className="bg-muted/50 rounded-lg p-8 text-center">
-            <p className="text-sm text-muted-foreground">No past meetings</p>
-          </div>
+          {currentData.upcoming.length === 0 ? (
+            <p className="text-sm text-muted-foreground bg-card p-4 rounded-lg border text-center">
+              No upcoming {activeTab.toLowerCase()} meetings
+            </p>
+          ) : (
+            currentData.upcoming.map((m) => (
+              <MeetingCard
+                key={m.scheduleId}
+                title={m.title}
+                date={new Date(m.date).toDateString()}
+                time={m.time}
+                location={m.location}
+                onClick={() => {
+                  if (!m.isSupervisor) {
+                    setLocation(`/meeting-detail/${m.scheduleId}/${type}/${groupId}`);
+                  }
+                }}
+              />
+            ))
+          )}
         </div>
+
+        {/* Today */}
+        <div>
+          <h2 className="text-lg font-semibold mb-2">
+            Today ({currentData.today.length})
+          </h2>
+
+          {currentData.today.length === 0 ? (
+            <p className="text-sm text-muted-foreground bg-card p-4 rounded-lg border text-center">
+              No {activeTab.toLowerCase()} meetings today
+            </p>
+          ) : (
+            currentData.today.map((m) => (
+              <MeetingCard
+                key={m.scheduleId}
+                title={m.title}
+                date={new Date(m.date).toDateString()}
+                time={m.time}
+                location={m.location}
+                onClick={() => {
+                  if (!m.isSupervisor) {
+                    setMeetingData(m);
+                    setLocation(`/meeting-detail/${m.scheduleId}/${type}/${groupId}`);
+                  }
+                }}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Past */}
+        <div>
+          <h2 className="text-lg font-semibold mb-2">
+            Past ({currentData.past.length})
+          </h2>
+
+          {currentData.past.length === 0 ? (
+            <p className="text-sm text-muted-foreground bg-card p-4 rounded-lg border text-center">
+              No past {activeTab.toLowerCase()} meetings
+            </p>
+          ) : (
+            currentData.past.map((m) => (
+              <MeetingCard
+                key={m.scheduleId}
+                title={m.title}
+                date={new Date(m.date).toDateString()}
+                time={m.time}
+                location={m.location}
+              />
+            ))
+          )}
+        </div>
+
       </div>
-    </MobileLayout>
+
+      {activeTab === "Committee" && (
+        <div className="fixed bottom-5 right-5">
+          <Button
+            size="icon"
+            className="rounded-full shadow-lg w-12 h-12"
+            onClick={() => setLocation("/committee/schedule-meeting")}
+          >
+            <Plus className="w-5 h-5" />
+          </Button>
+        </div>
+      )}
+    </StudentLayout>
   );
 }
