@@ -43,6 +43,16 @@ setActiveFype(JSON.parse(Fyptype));
       icon: <Award className="w-5 h-5" />,
     },
     {
+      label: "Task Allocation",
+      path: "/committee-head/general-task-allocation",
+      icon: <Award className="w-5 h-5" />,
+    },
+    {
+      label: "Task Evaluation",
+      path: "/committee-head/general-task-evaluation",
+      icon: <Award className="w-5 h-5" />,
+    },
+    {
       label: "Profile",
       path: "/director/profile",
       icon: <User className="w-5 h-5" />,

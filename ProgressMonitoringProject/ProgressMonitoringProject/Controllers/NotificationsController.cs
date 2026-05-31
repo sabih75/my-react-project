@@ -105,6 +105,45 @@ namespace ProgressMonitoringProject.Controllers
             db.NotificationRecipients.AddRange(recipients);
             db.SaveChanges();
         }
-       
+
+        [HttpPost]
+        [Route("create")]
+        public IHttpActionResult CreateNotificationApi(NotificationInputModel model)
+        {
+            try
+            {
+                if (model == null || string.IsNullOrEmpty(model.Title) || model.RecipientIds == null)
+                    return BadRequest("Invalid model data");
+
+                CreateNotification(
+                    model.SenderId,
+                    model.SenderRole,
+                    model.Type,
+                    model.ReferenceId,
+                    model.Title,
+                    model.Message,
+                    model.RecipientIds,
+                    model.RecipientRole
+                );
+
+                return Ok("Notification created successfully!");
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+    }
+
+    public class NotificationInputModel
+    {
+        public string SenderId { get; set; }
+        public string SenderRole { get; set; }
+        public string Type { get; set; }
+        public int ReferenceId { get; set; }
+        public string Title { get; set; }
+        public string Message { get; set; }
+        public List<string> RecipientIds { get; set; }
+        public string RecipientRole { get; set; }
     }
 }

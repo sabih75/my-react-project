@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ClipboardList, Target, Award, User, MessageSquare, Clock, Save, Copy, Calculator, AlertTriangle, CheckCircle } from "lucide-react";
-
+import { TrendingUp } from "lucide-react";
 import CommitteeHeadLayout from "./ComitteeHeadLayoutScreen";
 import { MobileLayout } from "@/components/MobileLayout";
 const API = "http://localhost/ProgressMonitoringProject/api";
@@ -31,6 +31,34 @@ export default function DirectorEvaluationScreen() {
   const [calculatingIndividual, setCalculatingIndividual] = useState({});
   const [savingIndividual, setSavingIndividual] = useState({});
   const [savingGradeIndividual, setSavingGradeIndividual] = useState({});
+  const [includeSupervisorScore, setIncludeSupervisorScore] = useState(false);
+
+  const [historyData, setHistoryData] = useState({});
+  const [loadingHistory, setLoadingHistory] = useState({});
+  const [expandedHistory, setExpandedHistory] = useState({});
+
+  const toggleHistory = async (student) => {
+    const key = student.EnrollmentID;
+    if (expandedHistory[key]) {
+      setExpandedHistory((prev) => ({ ...prev, [key]: false }));
+      return;
+    }
+
+    setExpandedHistory((prev) => ({ ...prev, [key]: true }));
+
+    if (historyData[key]) return;
+
+    try {
+      setLoadingHistory((prev) => ({ ...prev, [key]: true }));
+      const res = await axios.get(`${API}/fyp1-scores/student-evaluation-history/${student.EnrollmentID}`);
+      setHistoryData((prev) => ({ ...prev, [key]: res.data }));
+    } catch (err) {
+      console.error("Error loading evaluation history:", err);
+      alert("Failed to load evaluation history");
+    } finally {
+      setLoadingHistory((prev) => ({ ...prev, [key]: false }));
+    }
+  };
 
   const IS_FYP2 = activeFYP === "FYP-2";
   const getKey = (s) => `E-${s.EnrollmentID}`;
@@ -53,8 +81,17 @@ export default function DirectorEvaluationScreen() {
       setStudents(studentData);
 
       // ================= PANEL =================
-      const panelRes = await axios.get(`${API}/${apiPrefix}/evaluation-panel/${meetingId}`);
-      const param = panelRes.data.parameters.find((p) => p.id == parameterId);
+      let param = null;
+      if (meetingId === "0" || meetingId === 0 || !meetingId) {
+        const sessionRes = await axios.get(`${API}/users/CurrentSession`);
+        const currentSessionId = sessionRes.data?.id || 1;
+        const criteriaRes = await axios.get(`${API}/${apiPrefix}/available-criteria/${currentSessionId}`);
+        const allParams = criteriaRes.data || [];
+        param = allParams.find((p) => p.id == parameterId);
+      } else {
+        const panelRes = await axios.get(`${API}/${apiPrefix}/evaluation-panel/${meetingId}`);
+        param = panelRes.data.parameters.find((p) => p.id == parameterId);
+      }
       setParameter(param || null);
       setSubParams(param?.subParameters || []);
 
@@ -65,7 +102,7 @@ export default function DirectorEvaluationScreen() {
 
       if (user?.id) {
         try {
-          const savedMarksUrl = IS_FYP2 
+          const savedMarksUrl = IS_FYP2
             ? `${API}/${apiPrefix}/get-saved-marks/${parameterId}/${user.id}`
             : `${API}/${apiPrefix}/get-saved-marks/${meetingId}/${parameterId}/${user.id}`;
           const savedMarksRes = await axios.get(savedMarksUrl);
@@ -244,7 +281,9 @@ export default function DirectorEvaluationScreen() {
   // ================= CALCULATE SCORES =================
   const calculateFinalScores = async () => {
     try {
-      const endpoint = IS_FYP2 ? `${API}/fyp2-scores/calculate-final-fyp2` : `${API}/fyp1-scores/calculate-final-fyp1`;
+      const endpoint = IS_FYP2
+        ? `${API}/fyp2-scores/calculate-final-fyp2?includeSupervisorScore=${includeSupervisorScore}`
+        : `${API}/fyp1-scores/calculate-final-fyp1?includeSupervisorScore=${includeSupervisorScore}`;
       const res = await axios.post(endpoint);
       const map = {};
 
@@ -287,11 +326,11 @@ export default function DirectorEvaluationScreen() {
     const key = getKey(student);
     try {
       setCalculatingIndividual((prev) => ({ ...prev, [key]: true }));
-      const endpoint = IS_FYP2 
-        ? `${API}/fyp2-scores/calculate-final-fyp2` 
-        : `${API}/fyp1-scores/calculate-final-fyp1`;
+      const endpoint = IS_FYP2
+        ? `${API}/fyp2-scores/calculate-final-fyp2?includeSupervisorScore=${includeSupervisorScore}`
+        : `${API}/fyp1-scores/calculate-final-fyp1?includeSupervisorScore=${includeSupervisorScore}`;
       const res = await axios.post(endpoint);
-      
+
       const record = res.data.find((r) => r.EnrollmentID === student.EnrollmentID);
       if (record) {
         setCalculatedScores((prev) => ({
@@ -337,7 +376,7 @@ export default function DirectorEvaluationScreen() {
     if (hasError) return;
 
     const payload = [];
-    
+
     subParams.forEach((sp) => {
       const val = marks?.[key]?.[sp.id];
       const basePayload = {
@@ -422,10 +461,30 @@ export default function DirectorEvaluationScreen() {
               </div>
             </div>
           </div>
-          <Badge className="px-4 py-2 text-sm bg-blue-900 text-white flex items-center gap-2">
-            <Award className="w-4 h-4" />
-            {parameter?.percentage}% Weightage
-          </Badge>
+        </div>
+
+        {/* SUPERVISOR SCORE SETTING */}
+        <div className="bg-card border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm max-w-5xl mx-auto">
+          <div className="space-y-1">
+            <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-primary" /> Grade Calculation Options
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Choose whether to incorporate supervisor's task evaluation scores into the final grade calculation (80% Committee/Director weightage, 20% Supervisor weightage).
+            </p>
+          </div>
+          <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-xl border shrink-0">
+            <input
+              type="checkbox"
+              id="includeSupScore"
+              checked={includeSupervisorScore}
+              onChange={(e) => setIncludeSupervisorScore(e.target.checked)}
+              className="w-4 h-4 rounded text-primary focus:ring-primary border-border cursor-pointer"
+            />
+            <label htmlFor="includeSupScore" className="text-xs font-bold text-foreground cursor-pointer select-none">
+              Include Supervisor Score
+            </label>
+          </div>
         </div>
 
         {/* CONTENT */}
@@ -464,6 +523,15 @@ export default function DirectorEvaluationScreen() {
                       <div className="flex gap-2 flex-wrap">
                         <Button size="sm" variant="default" onClick={() => setLocation(`/student-progress/${s.StudentID}/${activeFYP}`)}>
                           View Progress
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant={expandedHistory[s.EnrollmentID] ? "secondary" : "outline"} 
+                          onClick={() => toggleHistory(s)} 
+                          className="flex items-center gap-2"
+                        >
+                          <Clock className="w-4 h-4" /> 
+                          {expandedHistory[s.EnrollmentID] ? "Hide History" : "View History"}
                         </Button>
                         {hasTask && (
                           <Button size="sm" variant={isOpen ? "secondary" : "outline"} onClick={() => loadRemarks(s)} className="flex items-center gap-2">
@@ -562,6 +630,87 @@ export default function DirectorEvaluationScreen() {
                         </div>
                       )}
 
+                      {/* EVALUATION HISTORY SECTION */}
+                      {expandedHistory[s.EnrollmentID] && (
+                        <div className="border border-blue-900/10 rounded-xl p-5 bg-blue-50/20 space-y-4 animate-in slide-in-from-top-2">
+                          <h4 className="font-bold text-sm text-blue-900 flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-blue-950" /> Grading & Remarks Evaluation History
+                          </h4>
+
+                          {loadingHistory[s.EnrollmentID] ? (
+                            <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+                              <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></span>
+                              Loading history...
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              {/* SUPERVISOR HISTORY */}
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                                  Supervisor Marks & Task Remarks
+                                </h5>
+                                {historyData[s.EnrollmentID]?.supervisorHistory?.length > 0 ? (
+                                  <div className="border rounded-lg bg-background overflow-hidden divide-y text-xs">
+                                    {historyData[s.EnrollmentID].supervisorHistory.map((t, idx) => (
+                                      <div key={idx} className="p-3 space-y-1">
+                                        <div className="flex justify-between items-start">
+                                          <span className="font-bold text-foreground">{t.TaskTitle}</span>
+                                          <Badge className="text-[10px] px-1.5 py-0 bg-blue-900 text-white">
+                                            {t.Status} ({t.ProgressStatus})
+                                          </Badge>
+                                        </div>
+                                        <div className="flex justify-between text-[11px] text-muted-foreground">
+                                          <span>Remarks: <span className="text-foreground italic">{t.Remarks}</span></span>
+                                          <span className="font-bold text-primary shrink-0 ml-4">
+                                            Score: {t.Score !== null ? `${t.Score} / 100` : "Not Graded"}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground italic bg-background border p-3 rounded-lg text-center">
+                                    No supervisor tasks or remarks found.
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* COMMITTEE HISTORY */}
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                                  Committee Meeting Evaluation History
+                                </h5>
+                                {historyData[s.EnrollmentID]?.committeeHistory?.length > 0 ? (
+                                  <div className="border rounded-lg bg-background overflow-hidden divide-y text-xs">
+                                    {historyData[s.EnrollmentID].committeeHistory.map((c, idx) => (
+                                      <div key={idx} className="p-3 space-y-1">
+                                        <div className="flex justify-between items-start">
+                                          <span className="font-bold text-foreground">{c.MeetingTitle} - {c.ParameterName}</span>
+                                          <span className="font-bold text-emerald-700 shrink-0 ml-4">
+                                            {c.ObtainedMarks} / {c.MaxMarks} Marks
+                                          </span>
+                                        </div>
+                                        <div className="text-[11px] text-muted-foreground">
+                                          Sub-Parameter: <span className="text-foreground">{c.SubParameterName}</span>
+                                        </div>
+                                        <div className="flex justify-between text-[11px] text-muted-foreground">
+                                          <span>Remarks: <span className="text-foreground italic">{c.Remarks}</span></span>
+                                          <span className="font-semibold text-foreground">By: {c.Evaluator}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground italic bg-background border p-3 rounded-lg text-center">
+                                    No committee evaluation history found.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* FINAL GRADE */}
                       {hasTask && (
                         <>
@@ -612,7 +761,7 @@ export default function DirectorEvaluationScreen() {
                               <Calculator className="w-4 h-4" />
                               {calculatingIndividual[key] ? "Calculating..." : "Calc Score"}
                             </Button>
-                            
+
                             <Button
                               variant="outline"
                               size="sm"
@@ -623,7 +772,7 @@ export default function DirectorEvaluationScreen() {
                               <Target className="w-4 h-4" />
                               {savingIndividual[key] ? "Saving..." : "Save Marks"}
                             </Button>
-                            
+
                             <Button
                               size="sm"
                               className="flex items-center gap-2 font-semibold"

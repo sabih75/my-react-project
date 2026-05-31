@@ -46,6 +46,7 @@ export default function StudentDashboard() {
             type: student.FypType,
             groupId: student.GroupId,
             filter: "upcoming",
+            studentId: studentId
           },
         }
       );

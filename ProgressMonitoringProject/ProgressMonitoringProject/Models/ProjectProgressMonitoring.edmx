@@ -4,7 +4,7 @@
   <edmx:Runtime>
     <!-- SSDL content -->
     <edmx:StorageModels>
-      <Schema Namespace="FypProjectProgDBModel.Store" Provider="System.Data.SqlClient" ProviderManifestToken="2012" Alias="Self" xmlns:store="http://schemas.microsoft.com/ado/2007/12/edm/EntityStoreSchemaGenerator" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm/ssdl">
+    <Schema Namespace="FypProjectProgDBModel.Store" Provider="System.Data.SqlClient" ProviderManifestToken="2012" Alias="Self" xmlns:store="http://schemas.microsoft.com/ado/2007/12/edm/EntityStoreSchemaGenerator" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm/ssdl">
         <EntityType Name="ComiteeMeeting">
           <Key>
             <PropertyRef Name="id" />
@@ -198,6 +198,7 @@
           <Property Name="meetingDate" Type="date" />
           <Property Name="isAttend" Type="int" />
           <Property Name="type" Type="varchar" MaxLength="20" />
+          <Property Name="studentID" Type="varchar" MaxLength="100" />
         </EntityType>
         <EntityType Name="MeetingAttendance">
           <Key>
@@ -367,6 +368,7 @@ warning 6002: The table/view 'FypProjectProgDB.dbo.SemesterAgenda' does not have
           <Property Name="selectedTech" Type="int" />
           <Property Name="studentDepartment" Type="int" Nullable="false" />
           <Property Name="studentSection" Type="int" />
+          <Property Name="semesterNo" Type="int" />
         </EntityType>
         <EntityType Name="SupervisorAttendance">
           <Key>
@@ -1697,8 +1699,7 @@ warning 6002: The table/view 'FypProjectProgDB.dbo.SemesterAgenda' does not have
             <End Role="FypStudentEvaluationRemarks" EntitySet="FypStudentEvaluationRemarks" />
           </AssociationSet>
         </EntityContainer>
-      </Schema>
-    </edmx:StorageModels>
+      </Schema></edmx:StorageModels>
     <!-- CSDL content -->
     <edmx:ConceptualModels>
       <Schema Namespace="FypProjectProgDBModel" Alias="Self" annotation:UseStrongSpatialTypes="false" xmlns:annotation="http://schemas.microsoft.com/ado/2009/02/edm/annotation" xmlns:customannotation="http://schemas.microsoft.com/ado/2013/11/edm/customannotation" xmlns="http://schemas.microsoft.com/ado/2009/11/edm">
@@ -1956,6 +1957,7 @@ warning 6002: The table/view 'FypProjectProgDB.dbo.SemesterAgenda' does not have
           <NavigationProperty Name="ComiteeMeeting" Relationship="Self.FK__GroupSche__comit__47A6A41B" FromRole="GroupSchedule" ToRole="ComiteeMeeting" />
           <NavigationProperty Name="MeetingAttendances" Relationship="Self.FK__MeetingAt__sched__489AC854" FromRole="GroupSchedule" ToRole="MeetingAttendance" />
           <NavigationProperty Name="MeetingQueues" Relationship="Self.FK__MeetingQu__sched__4B7734FF" FromRole="GroupSchedule" ToRole="MeetingQueue" />
+          <Property Name="studentID" Type="String" MaxLength="100" FixedLength="false" Unicode="false" />
         </EntityType>
         <EntityType Name="MeetingAttendance">
           <Key>
@@ -2165,6 +2167,7 @@ warning 6002: The table/view 'FypProjectProgDB.dbo.SemesterAgenda' does not have
           <NavigationProperty Name="SupNotBroadCasts" Relationship="Self.FK__SupNotBro__stude__662B2B3B" FromRole="Students" ToRole="SupNotBroadCast" />
           <NavigationProperty Name="SupTaskBroadCasts" Relationship="Self.FK__SupTaskBr__stude__671F4F74" FromRole="Students" ToRole="SupTaskBroadCast" />
           <NavigationProperty Name="Tasks" Relationship="Self.FK__Tasks__studentID__6AEFE058" FromRole="Students" ToRole="Tasks" />
+          <Property Name="semesterNo" Type="Int32" />
         </EntityType>
         <EntityType Name="SupervisorAttendance">
           <Key>
@@ -3733,6 +3736,7 @@ warning 6002: The table/view 'FypProjectProgDB.dbo.SemesterAgenda' does not have
           <EntitySetMapping Name="GroupSchedules">
             <EntityTypeMapping TypeName="FypProjectProgDBModel.GroupSchedule">
               <MappingFragment StoreEntitySet="GroupSchedule">
+                <ScalarProperty Name="studentID" ColumnName="studentID" />
                 <ScalarProperty Name="id" ColumnName="id" />
                 <ScalarProperty Name="groupID" ColumnName="groupID" />
                 <ScalarProperty Name="comiteeMeetingID" ColumnName="comiteeMeetingID" />
@@ -3903,6 +3907,7 @@ warning 6002: The table/view 'FypProjectProgDB.dbo.SemesterAgenda' does not have
           <EntitySetMapping Name="Students">
             <EntityTypeMapping TypeName="FypProjectProgDBModel.Student">
               <MappingFragment StoreEntitySet="Students">
+                <ScalarProperty Name="semesterNo" ColumnName="semesterNo" />
                 <ScalarProperty Name="regNum" ColumnName="regNum" />
                 <ScalarProperty Name="name" ColumnName="name" />
                 <ScalarProperty Name="admissionSession" ColumnName="admissionSession" />

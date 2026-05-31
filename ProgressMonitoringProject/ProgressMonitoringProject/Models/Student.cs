@@ -35,6 +35,7 @@ namespace ProgressMonitoringProject.Models
         public Nullable<int> selectedTech { get; set; }
         public int studentDepartment { get; set; }
         public Nullable<int> studentSection { get; set; }
+        public Nullable<int> semesterNo { get; set; }
     
         public virtual Department Department { get; set; }
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]

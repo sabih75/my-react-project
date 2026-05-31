@@ -65,6 +65,40 @@ export default function CommitteeHeadMeeting() {
   const [studentRemarks, setStudentRemarks] = useState({});
   const [openRemarkStudent, setOpenRemarkStudent] = useState(null);
 
+  const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
+  const [rescheduleStudent, setRescheduleStudent] = useState("All");
+  const [newRescheduleDate, setNewRescheduleDate] = useState("");
+  const [newRescheduleTime, setNewRescheduleTime] = useState("");
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+
+  const handleRescheduleSubmit = async () => {
+    if (!newRescheduleDate || !newRescheduleTime) {
+      alert("Please select a new date and time.");
+      return;
+    }
+
+    try {
+      setRescheduleLoading(true);
+      await axios.post(`${API_BASE}/committee-meetings/reschedule-meeting`, {
+        MeetingId: selectedMeeting,
+        GroupId: selectedGroup,
+        StudentId: rescheduleStudent,
+        NewDate: newRescheduleDate,
+        NewTime: newRescheduleTime
+      });
+
+      alert("Meeting rescheduled successfully! Students and their Supervisor have been notified.");
+      setIsRescheduleOpen(false);
+      fetchMeetings(activeFYP);
+      resetSelection();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to reschedule meeting.");
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchMeetings(activeFYP);
     resetSelection();
@@ -228,15 +262,27 @@ export default function CommitteeHeadMeeting() {
     setLocation(`/committee/allocation/${selectedGroup}`);
   };
 
+  const isMidTaskMeeting = activeMeetingType && activeMeetingType.toLowerCase().includes("midtask");
+
   const assignFinalTask = () => {
-    setLocation(`/committee/final-task/${selectedGroup}`);
+    if (isMidTaskMeeting) {
+      setLocation(`/committee/mid-task/${selectedGroup}`);
+    } else {
+      setLocation(`/committee/final-task/${selectedGroup}`);
+    }
   };
 
   const viewStudentProgress = (studentId) => {
     setLocation(`/student-progress/${studentId}/${activeFYP}`);
   };
 
-  const isTaskAssigned = groupDetails.length > 0 && groupDetails.some(s => s.TaskId && s.TaskId !== 0);
+  const isTaskAssigned = groupDetails.length > 0 && groupDetails.some(s => {
+    if (isMidTaskMeeting) {
+      return s.MidTaskId && s.MidTaskId !== 0;
+    } else {
+      return s.FinalTaskId && s.FinalTaskId !== 0;
+    }
+  });
 
   const MeetingCard = ({ meeting, selectedMeeting, selectedGroup, onClick }) => {
     const isSelected = selectedMeeting === meeting.id && selectedGroup === meeting.GroupIDs;
@@ -385,53 +431,23 @@ export default function CommitteeHeadMeeting() {
                     </div>
                   </div>
                 </div>
+                <div className="mt-6 pt-4 border-t">
+                  <Button 
+                    variant="outline" 
+                    className="w-full flex items-center justify-center gap-2 hover:bg-primary/5 hover:text-primary transition-colors border-primary/20 text-primary font-bold"
+                    onClick={() => {
+                      setNewRescheduleDate("");
+                      setNewRescheduleTime("");
+                      setRescheduleStudent("All");
+                      setIsRescheduleOpen(true);
+                    }}
+                  >
+                    <Calendar className="w-4 h-4" /> Reschedule Meeting
+                  </Button>
+                </div>
               </div>
 
-              {/* Evaluation Panel Card */}
-              {activeFYP === "FYP-2" && !isTaskAssigned ? (
-                <div className="bg-destructive/5 border border-destructive/20 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center">
-                  <AlertCircle className="w-10 h-10 text-destructive mb-3" />
-                  <h3 className="font-bold text-destructive text-lg mb-1">Evaluation Locked</h3>
-                  <p className="text-sm font-medium text-destructive/80">
-                    This group has not been assigned a Final Task yet. You must allocate the Final Task before you can evaluate them.
-                  </p>
-                </div>
-              ) : evaluationParams.length > 0 ? (
-                <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-3xl p-6 shadow-sm">
-                  <div className="flex justify-between items-center mb-5">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                      <Target className="w-5 h-5 text-primary" /> Director Evaluation
-                    </h3>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {evaluationParams.map((param) => {
-                      const isCompleted = param.IsGraded === true;
-                      return (
-                        <div key={param.ParameterID} className="bg-background border rounded-xl p-4 flex justify-between items-center shadow-sm hover:shadow-md transition">
-                          <div>
-                            <p className="font-bold text-sm text-foreground">{param.ParameterName}</p>
-                            <p className="text-xs text-muted-foreground font-medium mt-1">{param.Percentage}% Weightage</p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant={isCompleted ? "outline" : "default"}
-                            className={isCompleted ? "text-green-600 border-green-200 hover:bg-green-50" : "shadow-md"}
-                            onClick={() => setLocation(`/Director/evaluation/${selectedMeeting}/${selectedGroup}/${param.ParameterID}/${activeFYP}`)}
-                          >
-                            {isCompleted ? <><CheckCircle className="w-4 h-4 mr-2"/> Graded</> : "Evaluate"}
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                 <div className="bg-muted/20 border rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center">
-                    <AlertCircle className="w-8 h-8 text-muted-foreground mb-3 opacity-50" />
-                    <p className="text-sm font-medium text-muted-foreground">No evaluation parameters set for this meeting type.</p>
-                 </div>
-              )}
+              {/* Evaluation Panel Removed from Meetings Screen */}
             </div>
           )}
 
@@ -452,7 +468,9 @@ export default function CommitteeHeadMeeting() {
                   </Badge>
                   {activeFYP === "FYP-2" && (
                      <Badge variant={isTaskAssigned ? "default" : "destructive"} className={isTaskAssigned ? "bg-purple-600 px-3 py-1" : "px-3 py-1"}>
-                       {isTaskAssigned ? "Final Task Allocated" : "No Final Task"}
+                       {isTaskAssigned 
+                         ? (isMidTaskMeeting ? "MidTask Allocated" : "Final Task Allocated") 
+                         : (isMidTaskMeeting ? "No MidTask" : "No Final Task")}
                      </Badge>
                   )}
                 </div>
@@ -467,8 +485,8 @@ export default function CommitteeHeadMeeting() {
                   <Button variant="secondary" onClick={supervisorAllocation}>Allocate Supervisor</Button>
                 )}
                 {activeFYP === "FYP-2" && !isTaskAssigned && (
-                  <Button onClick={assignFinalTask} className="bg-purple-600 hover:bg-purple-700 text-white">
-                    Assign Final Task
+                  <Button onClick={assignFinalTask} className="bg-purple-600 hover:bg-purple-700 text-white font-bold">
+                    Assign {isMidTaskMeeting ? "MidTask" : "Final Task"}
                   </Button>
                 )}
               </div>
@@ -525,6 +543,81 @@ export default function CommitteeHeadMeeting() {
           )}
         </div>
       </div>
+
+      {/* ================= RESCHEDULE MODAL ================= */}
+      {isRescheduleOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-card border rounded-3xl p-6 shadow-2xl w-full max-w-md mx-4 space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="font-bold text-lg text-primary flex items-center gap-2">
+                <Calendar className="w-5 h-5" /> Reschedule Meeting
+              </h3>
+              <button
+                onClick={() => setIsRescheduleOpen(false)}
+                className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1 hover:bg-muted rounded-full transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Reschedule Target */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Reschedule Target
+                </label>
+                <select
+                  value={rescheduleStudent}
+                  onChange={(e) => setRescheduleStudent(e.target.value)}
+                  className="w-full h-11 border rounded-xl px-3 bg-background focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium"
+                >
+                  <option value="All">Entire Group (Group {selectedGroup})</option>
+                  {groupDetails.map((student) => (
+                    <option key={student.studentID} value={student.studentID}>
+                      Only {student.studentName} ({student.studentID})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  New Date
+                </label>
+                <input
+                  type="date"
+                  value={newRescheduleDate}
+                  onChange={(e) => setNewRescheduleDate(e.target.value)}
+                  className="w-full h-11 border rounded-xl px-3 bg-background focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium"
+                />
+              </div>
+
+              {/* Time Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  New Time
+                </label>
+                <input
+                  type="time"
+                  value={newRescheduleTime}
+                  onChange={(e) => setNewRescheduleTime(e.target.value)}
+                  className="w-full h-11 border rounded-xl px-3 bg-background focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t pt-4">
+              <Button variant="ghost" onClick={() => setIsRescheduleOpen(false)} className="rounded-xl">
+                Cancel
+              </Button>
+              <Button onClick={handleRescheduleSubmit} disabled={rescheduleLoading} className="rounded-xl shadow-md shadow-primary/10">
+                {rescheduleLoading ? "Saving..." : "Confirm Reschedule"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </CommitteeHeadLayout>
   );
 }

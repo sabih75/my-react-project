@@ -50,8 +50,6 @@ export default function SupervisorAssignTask() {
 
   /* ---------------- LOAD GROUPS ---------------- */
   useEffect(() => {
-    alert(supervisorId);
-
     axios
       .get(`${API_BASE}/supervisor/GetSupervisorGroups/${supervisorId}/${fypType}`)
       .then(res => {

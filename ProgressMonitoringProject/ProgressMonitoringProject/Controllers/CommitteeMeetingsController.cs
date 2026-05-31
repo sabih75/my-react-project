@@ -1480,12 +1480,21 @@ namespace ProgressMonitoringProject.Controllers
 
         [HttpGet]
         [Route("meetings")]
-        public IHttpActionResult GetMeetings(string type,int groupId, string filter = "today")
+        public IHttpActionResult GetMeetings(string type, int groupId, string filter = "today", string studentId = null)
         {
             var today = DateTime.Today;
 
             var query = db.GroupSchedules
-                .Where(m => m.type == type && m.groupID==groupId);
+                .Where(m => m.type == type && m.groupID == groupId);
+
+            if (!string.IsNullOrEmpty(studentId))
+            {
+                query = query.Where(m => m.studentID == null || m.studentID == studentId);
+            }
+            else
+            {
+                query = query.Where(m => m.studentID == null);
+            }
 
             switch (filter.ToLower())
             {
@@ -1519,6 +1528,7 @@ namespace ProgressMonitoringProject.Controllers
                     isFileRequired=m.ComiteeMeeting.isFileRequired,
                     isUploaded=m.filePath,
                     type = m.type,
+                    studentId = m.studentID,
 
                     description = m.ComiteeMeeting.meetingDescription
                 })
@@ -1555,6 +1565,8 @@ namespace ProgressMonitoringProject.Controllers
                         .Select(e => e.id)
                         .FirstOrDefault(),
 
+                    FinalTaskId = db.Fyp2Task.Where(t => t.groupId == groupId && t.sessionID == list.id && t.taskTitle == "Final Task").Select(t => t.id).FirstOrDefault(),
+                    MidTaskId = db.Fyp2Task.Where(t => t.groupId == groupId && t.sessionID == list.id && t.taskTitle == "MidTask").Select(t => t.id).FirstOrDefault(),
                     TaskId = db.Fyp2Task.Where(t => t.groupId == groupId && t.sessionID == list.id).Select(t => t.id).FirstOrDefault(),
 
                     Tech =  db.Technologies.Where(t => t.id == gm.Student.selectedTech).Select(x => x.name).FirstOrDefault()
@@ -1588,8 +1600,8 @@ namespace ProgressMonitoringProject.Controllers
                               ProjectId = p.id,
                               Title = p.title,
                               SuggestedBy = p.suggestedBy,
+                              SuggestedByName = db.Users.Where(u => u.id == p.suggestedBy).Select(u => u.name).FirstOrDefault() ?? "Director",
                               Objectives = p.objectives
-
                           })
                     .ToList();
             return Ok(projects);
@@ -1604,6 +1616,65 @@ namespace ProgressMonitoringProject.Controllers
             group.projectID = model.projectId;
             db.SaveChanges();
             return Ok("Project Allocate Successfully!");
+        }
+
+        [HttpPost]
+        [Route("bulk-upload-projects")]
+        public IHttpActionResult BulkUploadProjects(List<ProjectUploadDto> model)
+        {
+            if (model == null || !model.Any())
+                return BadRequest("No projects provided");
+
+            var currentSession = db.Sessions.OrderByDescending(o => o.id).FirstOrDefault();
+            if (currentSession == null)
+                return BadRequest("No active session found");
+
+            var firstUser = db.Users.FirstOrDefault();
+            string fallbackUserId = firstUser?.id;
+
+            using (var transaction = db.Database.BeginTransaction())
+            {
+                try
+                {
+                    foreach (var item in model)
+                    {
+                        if (string.IsNullOrWhiteSpace(item.Title)) continue;
+
+                        string suggBy = item.SuggestedBy;
+                        if (string.IsNullOrWhiteSpace(suggBy) || !db.Users.Any(u => u.id == suggBy))
+                        {
+                            suggBy = fallbackUserId;
+                        }
+
+                        var project = new Project
+                        {
+                            title = item.Title.Trim(),
+                            objectives = item.Objectives?.Trim() ?? "",
+                            projectStatus = true,
+                            suggestedBy = suggBy
+                        };
+
+                        db.Projects.Add(project);
+                        db.SaveChanges(); // Persist to get the auto-incremented Project.id
+
+                        var offered = new OfferedProject
+                        {
+                            projectID = project.id,
+                            sessionID = currentSession.id
+                        };
+                        db.OfferedProjects.Add(offered);
+                    }
+
+                    db.SaveChanges();
+                    transaction.Commit();
+                    return Ok("Projects uploaded and offered successfully!");
+                }
+                catch (Exception ex)
+                {
+                    transaction.Rollback();
+                    return InternalServerError(ex);
+                }
+            }
         }
 
         [HttpGet]
@@ -2048,6 +2119,121 @@ namespace ProgressMonitoringProject.Controllers
                 .ToList();
 
             return Ok(updatedResult);
+        }
+
+        [HttpPost]
+        [Route("reschedule-meeting")]
+        public IHttpActionResult RescheduleMeeting(RescheduleMeetingDto model)
+        {
+            try
+            {
+                var existingSchedule = db.GroupSchedules.FirstOrDefault(gs => gs.comiteeMeetingID == model.MeetingId && gs.groupID == model.GroupId && gs.studentID == null);
+                if (existingSchedule == null) return BadRequest("Meeting schedule not found.");
+
+                TimeSpan newTimeSpan;
+                if (!TimeSpan.TryParse(model.NewTime, out newTimeSpan))
+                {
+                    return BadRequest("Invalid time format.");
+                }
+
+                string meetingTitle = existingSchedule.ComiteeMeeting?.title ?? "Committee Meeting";
+
+                if (string.IsNullOrEmpty(model.StudentId) || model.StudentId == "All")
+                {
+                    // Reschedule for whole group
+                    existingSchedule.meetingDate = model.NewDate;
+                    existingSchedule.estimatedTime = newTimeSpan;
+                    existingSchedule.Status = "Scheduled";
+                    db.SaveChanges();
+                    
+                    ReindexQueue(existingSchedule.type, model.MeetingId);
+                    
+                    NotifyReschedule(model.MeetingId, existingSchedule.type, $"Meeting Rescheduled: {meetingTitle}", $"Your committee meeting for Group {model.GroupId} has been rescheduled to {model.NewDate.ToString("yyyy-MM-dd")} at {model.NewTime}.", model.GroupId, null);
+                }
+                else
+                {
+                    // Reschedule for ONE student. Create a clone GroupSchedule for that student.
+                    var newSchedule = new GroupSchedule
+                    {
+                        groupID = model.GroupId,
+                        comiteeMeetingID = model.MeetingId,
+                        meetingDate = model.NewDate,
+                        estimatedTime = newTimeSpan,
+                        Status = "Scheduled",
+                        type = existingSchedule.type,
+                        studentID = model.StudentId,
+                        isAttend = 0
+                    };
+                    db.GroupSchedules.Add(newSchedule);
+                    db.SaveChanges();
+                    
+                    ReindexQueue(newSchedule.type, model.MeetingId);
+                    
+                    NotifyReschedule(model.MeetingId, newSchedule.type, $"Meeting Rescheduled (Individual): {meetingTitle}", $"Your individual committee meeting has been rescheduled to {model.NewDate.ToString("yyyy-MM-dd")} at {model.NewTime}.", model.GroupId, model.StudentId);
+                }
+
+                return Ok("Meeting Rescheduled Successfully");
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        private void NotifyReschedule(int meetingId, string fypType, string title, string message, int groupId, string studentId)
+        {
+            try
+            {
+                var notification = new Notification
+                {
+                    Title = title,
+                    Message = message,
+                    Type = "CommitteeMeeting",
+                    ReferenceID = meetingId,
+                    CreatedAt = DateTime.Now,
+                    SenderID = null,
+                    SenderRole = "Committee"
+                };
+                db.Notifications.Add(notification);
+                db.SaveChanges();
+
+                var supervisorId = db.ProjectGroups.Where(p => p.id == groupId).Select(s => s.supervisorID).FirstOrDefault();
+                if (!string.IsNullOrEmpty(supervisorId))
+                {
+                    db.NotificationRecipients.Add(new NotificationRecipient {
+                        NotificationID = notification.NotificationID,
+                        RecipientID = supervisorId,
+                        RecipientRole = "Supervisor",
+                        IsRead = 0
+                    });
+                }
+
+                if (string.IsNullOrEmpty(studentId) || studentId == "All")
+                {
+                    var members = db.GroupMembers.Where(gm => gm.groupID == groupId).Select(gm => gm.studentID).ToList();
+                    foreach (var sid in members)
+                    {
+                        db.NotificationRecipients.Add(new NotificationRecipient {
+                            NotificationID = notification.NotificationID,
+                            RecipientID = sid,
+                            RecipientRole = "Student",
+                            IsRead = 0
+                        });
+                    }
+                }
+                else
+                {
+                    db.NotificationRecipients.Add(new NotificationRecipient {
+                        NotificationID = notification.NotificationID,
+                        RecipientID = studentId,
+                        RecipientRole = "Student",
+                        IsRead = 0
+                    });
+                }
+                
+                db.SaveChanges();
+            }
+            catch { /* silent */ }
         }
 
         [HttpGet]
@@ -2830,60 +3016,95 @@ namespace ProgressMonitoringProject.Controllers
         {
             try
             {
-                // =========================
-                // GET MEETING
-                // =========================
-
-                var meeting = db.ComiteeMeetings
-                    .FirstOrDefault(m => m.id == meetingId);
-
+                var meeting = db.ComiteeMeetings.FirstOrDefault(m => m.id == meetingId);
                 if (meeting == null)
                     return BadRequest("Meeting not found");
 
-                List<EvaluationParameterDto> parameters;
-
-                // =========================
-                // FYP-1
-                // =========================
+                List<EvaluationParameterDto> parameters = new List<EvaluationParameterDto>();
 
                 if (type.ToUpper() == "FYP-1")
                 {
-                    parameters = db.Fyp1EvaluationParameters
-                        .Where(p =>
-                            p.sessionID == meeting.sessionID && 
-                            p.name.ToLower().Trim() ==
-                            meeting.title.ToLower().Trim()
-                        )
-                        .Select(p => new EvaluationParameterDto
-                        {
-                            ParameterID = p.id,
-                            ParameterName = p.name,
-                            Percentage = (decimal)p.percentage,
-                            IsGraded = meeting.isGraded == true
-                        })
+                    // 1. Try explicit mapping first
+                    var parameterIds = db.MeetingParameterMappings
+                        .Where(x => x.meetingID == meetingId)
+                        .Select(x => x.parameterID)
                         .ToList();
+
+                    if (parameterIds.Any())
+                    {
+                        parameters = db.Fyp1EvaluationParameters
+                            .Where(p => parameterIds.Contains(p.id))
+                            .Select(p => new EvaluationParameterDto
+                            {
+                                ParameterID = p.id,
+                                ParameterName = p.name,
+                                Percentage = (decimal)p.percentage,
+                                IsGraded = meeting.isGraded == true
+                            })
+                            .ToList();
+                    }
+                    else
+                    {
+                        // 2. Fallback to clean fuzzy matching
+                        string cleanTitle = meeting.title.ToLower().Replace(" ", "").Trim();
+                        parameters = db.Fyp1EvaluationParameters
+                            .Where(p => p.sessionID == meeting.sessionID)
+                            .ToList()
+                            .Where(p => {
+                                string cleanName = p.name.ToLower().Replace(" ", "").Trim();
+                                return cleanName == cleanTitle || cleanName.Contains(cleanTitle) || cleanTitle.Contains(cleanName);
+                            })
+                            .Select(p => new EvaluationParameterDto
+                            {
+                                ParameterID = p.id,
+                                ParameterName = p.name,
+                                Percentage = (decimal)p.percentage,
+                                IsGraded = meeting.isGraded == true
+                            })
+                            .ToList();
+                    }
                 }
-
-                // =========================
-                // FYP-2
-                // =========================
-
                 else
                 {
-                    parameters = db.Fyp2EvaluationParameters
-                        .Where(p =>
-                            p.sessionID == meeting.sessionID &&
-                            p.name.ToLower().Trim() ==
-                            meeting.title.ToLower().Trim()
-                        )
-                        .Select(p => new EvaluationParameterDto
-                        {
-                            ParameterID = p.id,
-                            ParameterName = p.name,
-                            Percentage = (decimal)p.percentage,
-                            IsGraded = meeting.isGraded == true
-                        })
+                    // 1. Try explicit mapping first
+                    var parameterIds = db.Fyp2MeetingMapping
+                        .Where(x => x.meetingID == meetingId)
+                        .Select(x => x.parameterID)
                         .ToList();
+
+                    if (parameterIds.Any())
+                    {
+                        parameters = db.Fyp2EvaluationParameters
+                            .Where(p => parameterIds.Contains(p.id))
+                            .Select(p => new EvaluationParameterDto
+                            {
+                                ParameterID = p.id,
+                                ParameterName = p.name,
+                                Percentage = (decimal)p.percentage,
+                                IsGraded = meeting.isGraded == true
+                            })
+                            .ToList();
+                    }
+                    else
+                    {
+                        // 2. Fallback to clean fuzzy matching
+                        string cleanTitle = meeting.title.ToLower().Replace(" ", "").Trim();
+                        parameters = db.Fyp2EvaluationParameters
+                            .Where(p => p.sessionID == meeting.sessionID)
+                            .ToList()
+                            .Where(p => {
+                                string cleanName = p.name.ToLower().Replace(" ", "").Trim();
+                                return cleanName == cleanTitle || cleanName.Contains(cleanTitle) || cleanTitle.Contains(cleanName);
+                            })
+                            .Select(p => new EvaluationParameterDto
+                            {
+                                ParameterID = p.id,
+                                ParameterName = p.name,
+                                Percentage = (decimal)p.percentage,
+                                IsGraded = meeting.isGraded == true
+                            })
+                            .ToList();
+                    }
                 }
 
                 return Ok(parameters);
@@ -2942,6 +3163,15 @@ namespace ProgressMonitoringProject.Controllers
 
 
 
+        public class RescheduleMeetingDto
+        {
+            public int MeetingId { get; set; }
+            public int GroupId { get; set; }
+            public string StudentId { get; set; }
+            public DateTime NewDate { get; set; }
+            public string NewTime { get; set; }
+        }
+
         public class ScheduleCommitteeMeetingDto
         {
             public string meetingDescription { get; set; }
@@ -2969,6 +3199,7 @@ namespace ProgressMonitoringProject.Controllers
             public int ProjectId { get; set; }
             public string Title { get; set; }
             public string SuggestedBy { get; set; }
+            public string SuggestedByName { get; set; }
             public string Objectives { get; set; }
         }
         public class ProjectAllocate
@@ -2977,6 +3208,12 @@ namespace ProgressMonitoringProject.Controllers
             public int groupId { get; set; }
             public int projectId { get; set; }
 
+        }
+        public class ProjectUploadDto
+        {
+            public string Title { get; set; }
+            public string Objectives { get; set; }
+            public string SuggestedBy { get; set; }
         }
         public class MeetingTimeUpdateModel
         {
@@ -3091,7 +3328,25 @@ namespace ProgressMonitoringProject.Controllers
                 db.Notifications.Add(notification);
                 db.SaveChanges();
 
-                // 2. Find all groups and their members/supervisors for this meeting
+                // 2. Notify all CommitteeHeads & Directors
+                var admins = db.Users
+                    .Where(u => u.role == "CommitteeHead" || u.role == "Director")
+                    .Select(u => u.id)
+                    .Distinct()
+                    .ToList();
+
+                foreach (var adminId in admins)
+                {
+                    db.NotificationRecipients.Add(new NotificationRecipient
+                    {
+                        NotificationID = notification.NotificationID,
+                        RecipientID = adminId,
+                        RecipientRole = "CommitteeHead",
+                        IsRead = 0
+                    });
+                }
+
+                // 3. Find all groups and their members/supervisors for this meeting
                 var groupInfo = db.GroupSchedules
                     .Where(gs => gs.comiteeMeetingID == meetingId)
                     .Select(gs => new {
@@ -3201,6 +3456,107 @@ namespace ProgressMonitoringProject.Controllers
                 Message = "File uploaded successfully.",
                 FilePath = virtualPath
             });
+        }
+
+        [HttpGet]
+        [Route("today-supervisor-meetings/{supervisorId}")]
+        public IHttpActionResult GetTodaySupervisorMeetings(string supervisorId)
+        {
+            try
+            {
+                var todayStart = DateTime.Today.Date;
+                var todayEnd = todayStart.AddDays(1);
+                
+                // Fetch scheduled committee meetings that are active OR scheduled for today
+                var groupSchedules = db.GroupSchedules
+                    .Where(gs => gs.Status != "Completed" || 
+                                 (gs.meetingDate.HasValue && gs.meetingDate.Value >= todayStart && gs.meetingDate.Value < todayEnd))
+                    .ToList();
+
+                var supervisorGroupIds = db.ProjectGroups
+                    .Where(pg => pg.supervisorID == supervisorId)
+                    .Select(pg => pg.id)
+                    .ToList();
+
+                var filteredSchedules = groupSchedules
+                    .Where(gs => {
+                        var comiteeMeeting = db.ComiteeMeetings.Find(gs.comiteeMeetingID);
+                        bool isMidTask = comiteeMeeting != null && 
+                                         (comiteeMeeting.title.ToLower().Contains("midtask") || 
+                                          comiteeMeeting.title.ToLower().Contains("mid task"));
+                        return gs.groupID.HasValue && supervisorGroupIds.Contains(gs.groupID.Value) && isMidTask;
+                    })
+                    .ToList();
+
+                var result = filteredSchedules.Select(gs => {
+                    var comiteeMeeting = db.ComiteeMeetings.Find(gs.comiteeMeetingID);
+                    int currentSessionId = comiteeMeeting?.sessionID ?? (db.Sessions.OrderByDescending(o => o.id).FirstOrDefault()?.id ?? 0);
+                    
+                    // Get project title safely
+                    var pg = db.ProjectGroups.Find(gs.groupID);
+                    string projectTitle = "No Project Title";
+                    if (pg != null && pg.projectID.HasValue)
+                    {
+                        var offeredProj = db.OfferedProjects.Find(pg.projectID.Value);
+                        if (offeredProj != null && offeredProj.projectID.HasValue)
+                        {
+                            var proj = db.Projects.Find(offeredProj.projectID.Value);
+                            if (proj != null)
+                            {
+                                projectTitle = proj.title;
+                            }
+                        }
+                    }
+
+                    // Get members safely with materialization
+                    var members = db.GroupMembers
+                        .Where(gm => gm.groupID == gs.groupID)
+                        .ToList()
+                        .Select(gm => {
+                            var student = db.Students.Find(gm.studentID);
+                            var enrollment = db.Enrollments
+                                .FirstOrDefault(e => e.studentID == gm.studentID && e.sessionID == currentSessionId);
+                            
+                            var finalTask = db.Fyp2Task
+                                .FirstOrDefault(t => t.groupId == gs.groupID && t.sessionID == currentSessionId && t.taskTitle == "Final Task");
+                            var midTask = db.Fyp2Task
+                                .FirstOrDefault(t => t.groupId == gs.groupID && t.sessionID == currentSessionId && t.taskTitle == "MidTask");
+
+                            return new {
+                                studentID = gm.studentID,
+                                name = student?.name ?? "Unknown",
+                                regNum = student?.regNum ?? "",
+                                EnrollmentID = enrollment?.id ?? 0,
+                                FinalTaskId = finalTask?.id ?? 0,
+                                MidTaskId = midTask?.id ?? 0
+                            };
+                        }).ToList();
+
+                    bool isMidTask = comiteeMeeting != null && comiteeMeeting.title.ToLower().Contains("midtask");
+
+                    return new {
+                        scheduleId = gs.id,
+                        meetingId = gs.comiteeMeetingID,
+                        groupId = gs.groupID,
+                        meetingTitle = comiteeMeeting?.title ?? "No Title",
+                        meetingDescription = comiteeMeeting?.meetingDescription ?? "",
+                        meetingDate = gs.meetingDate,
+                        meetingTime = gs.estimatedTime,
+                        venue = comiteeMeeting?.venue ?? "",
+                        status = gs.Status,
+                        type = gs.type,
+                        projectName = projectTitle,
+                        isMidTask = isMidTask,
+                        members = members
+                    };
+                }).ToList();
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
         }
     }
 }

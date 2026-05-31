@@ -28,10 +28,12 @@ export default function GradingAnalysis() {
   // State for loaded data
   const [sessionData, setSessionData] = useState([]);
   const [supervisorData, setSupervisorData] = useState([]);
+  const [supervisorScore, setSupervisorScore] = useState([]);
+  
   const [groupData, setGroupData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFyp, setActiveFyp] = useState("FYP-1");
-  
+  const gradeA="";
   // Search and Filter states
   const [activeTab, setActiveTab] = useState("session"); // "session" | "supervisor" | "group"
   const [selectedSessionId, setSelectedSessionId] = useState("all");
@@ -39,7 +41,8 @@ export default function GradingAnalysis() {
   const [supervisorSearch, setSupervisorSearch] = useState("");
   const [supervisorSort, setSupervisorSort] = useState("default"); // "default" | "aplus" | "total"
   const [groupSearch, setGroupSearch] = useState("");
-
+  const [grade,setGrade]=useState("");
+// const[showDetails,setShowDetails]=useState("");
   useEffect(() => {
     fetchAnalysisData();
   }, [activeFyp]);
@@ -48,15 +51,18 @@ export default function GradingAnalysis() {
     try {
       setLoading(true);
       
-      const [sessionRes, supervisorRes, groupRes] = await Promise.all([
+      const [sessionRes, supervisorRes, groupRes,supScore] = await Promise.all([
         axios.get(`${API}/grading-analysis/session-wise?fyp=${activeFyp}`),
         axios.get(`${API}/grading-analysis/supervisor-wise?fyp=${activeFyp}`),
-        axios.get(`${API}/grading-analysis/group-wise`)
+        axios.get(`${API}/grading-analysis/group-wise`),
+        axios.get(`${API}/grading-analysis/getSortedSUpervisorGrades/${activeFyp}`)
+        
       ]);
 
       setSessionData(sessionRes.data || []);
       setSupervisorData(supervisorRes.data || []);
       setGroupData(groupRes.data || []);
+      setSupervisorScore(supScore.data||[]);
     } catch (err) {
       console.error("Error fetching grading analysis:", err);
       alert("Failed to load grading analysis data!");
@@ -87,6 +93,10 @@ export default function GradingAnalysis() {
   const filteredSupervisors = supervisorData.filter((s) =>
     s.SupervisorName?.toLowerCase().includes(supervisorSearch.toLowerCase())
   );
+  const filteredSupervisorScore = supervisorScore.filter((s) =>
+    s.SupervisorName?.toLowerCase().includes(supervisorSearch.toLowerCase())
+  );
+
 
   // Helper to resolve supervisor stats dynamically by selected session
   const getSupervisorStats = (sup) => {
@@ -108,19 +118,14 @@ export default function GradingAnalysis() {
     };
   };
 
-  // Sort supervisors dynamically based on state
-  const sortedSupervisors = [...filteredSupervisors].sort((a, b) => {
-    const statsA = getSupervisorStats(a);
-    const statsB = getSupervisorStats(b);
+  const sortedSupervisors = [...filteredSupervisors].sort(() => {
+   
 
-    if (supervisorSort === "aplus") {
-      return statsB.grades.APlus - statsA.grades.APlus;
-    }
-    if (supervisorSort === "total") {
-      return statsB.totalSupervised - statsA.totalSupervised;
-    }
-    // Default: Alphabetical sort by name
-    return a.SupervisorName?.localeCompare(b.SupervisorName);
+    
+      return supervisorScore;
+
+
+
   });
 
   // 3. Filter groups
@@ -139,6 +144,51 @@ export default function GradingAnalysis() {
     const selectedSessName = sessionData.find(s => s.SessionId.toString() === selectedSessionId.toString())?.SessionName;
     return matchesSearch && g.SessionName === selectedSessName;
   });
+  const showDetails = (item,supervisorId) =>{
+    alert(item.grade);
+    if (item.grade == "A+"){
+setLocation(`/director/gradeDetails/${supervisorId}/A1`)
+
+    }
+    if (item.grade == "A"){
+setLocation(`/director/gradeDetails/${supervisorId}/A2`)
+
+    }
+    if (item.grade == "A-"){
+setLocation(`/director/gradeDetails/${supervisorId}/A3`)
+
+    }
+    if (item.grade == "B+"){
+setLocation(`/director/gradeDetails/${supervisorId}/A4`)
+
+    }
+    if (item.grade == "B"){
+setLocation(`/director/gradeDetails/${supervisorId}/A5`)
+
+    }
+    if (item.grade == "B-"){
+setLocation(`/director/gradeDetails/${supervisorId}/A6`)
+
+    }
+    if (item.grade == "C"){
+setLocation(`/director/gradeDetails/${supervisorId}/A7`)
+
+    }
+    if (item.grade == "D"){
+setLocation(`/director/gradeDetails/${supervisorId}/A8`)
+
+    }
+  
+    if (item.grade == "F"){
+setLocation(`/director/gradeDetails/${supervisorId}/A9`)
+
+    }
+   
+
+
+
+
+  }
 
   return (
     <CommitteeHeadLayout>
@@ -151,7 +201,7 @@ export default function GradingAnalysis() {
       <div className="min-h-screen bg-muted/20 p-6 space-y-6">
         
         {/* FYP Level Switcher */}
-        <div className="flex bg-card p-1 border rounded-xl shadow-sm w-fit">
+        {/* <div className="flex bg-card p-1 border rounded-xl shadow-sm w-fit">
           <button
             onClick={() => setActiveFyp("FYP-1")}
             className={`px-6 py-2 text-sm font-bold rounded-lg transition-all ${
@@ -172,10 +222,10 @@ export default function GradingAnalysis() {
           >
             FYP-2 Grades
           </button>
-        </div>
+        </div> */}
 
         {/* ================= HEADER SUMMARY CARDS ================= */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="p-5 flex items-center gap-4 border-emerald-100 bg-gradient-to-br from-emerald-50/20 to-emerald-50/5 shadow-sm">
             <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600">
               <GraduationCap className="w-6 h-6" />
@@ -207,11 +257,11 @@ export default function GradingAnalysis() {
               <h3 className="text-2xl font-bold tracking-tight">{groupData.length} Groups</h3>
             </div>
           </Card>
-        </div>
+        </div> */}
 
-        {/* ================= DYNAMIC FILTER CONTROLS ================= */}
+        ================= DYNAMIC FILTER CONTROLS =================
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-card border p-4 rounded-xl shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          {/* <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Academic Session Filter:
             </span>
@@ -227,10 +277,10 @@ export default function GradingAnalysis() {
                 </option>
               ))}
             </select>
-          </div>
+          </div> */}
           
           {/* SEARCH & SORT FOR ACTIVE TAB */}
-          <div className="w-full md:w-auto">
+          {/* <div className="w-full md:w-auto">
             {activeTab === "session" && (
               <div className="flex items-center bg-background border rounded-lg px-3 py-2 shadow-sm w-full md:w-80">
                 <Search className="w-4 h-4 text-muted-foreground mr-2.5" />
@@ -264,6 +314,8 @@ export default function GradingAnalysis() {
                   <option value="default">🔤 Sort Alphabetical</option>
                   <option value="aplus">🔥 Most A+ Grades</option>
                   <option value="total">👥 Total Supervised</option>
+                  <option value="averageScore">👥 Sort By Score</option>
+                  
                 </select>
               </div>
             )}
@@ -280,12 +332,12 @@ export default function GradingAnalysis() {
                 />
               </div>
             )}
-          </div>
+          </div> */}
         </div>
 
         {/* ================= NAVIGATION TABS ================= */}
         <div className="flex border-b border-border gap-2">
-          <Button
+          {/* <Button
             variant={activeTab === "session" ? "default" : "ghost"}
             className={`rounded-none border-b-2 px-6 h-12 font-semibold transition-all ${
               activeTab === "session" 
@@ -295,7 +347,7 @@ export default function GradingAnalysis() {
             onClick={() => setActiveTab("session")}
           >
             <BarChart3 className="w-4 h-4 mr-2" /> Session Distribution
-          </Button>
+          </Button> */}
           <Button
             variant={activeTab === "supervisor" ? "default" : "ghost"}
             className={`rounded-none border-b-2 px-6 h-12 font-semibold transition-all ${
@@ -307,7 +359,7 @@ export default function GradingAnalysis() {
           >
             <TrendingUp className="w-4 h-4 mr-2" /> Supervisor Performance
           </Button>
-          <Button
+          {/* <Button
             variant={activeTab === "group" ? "default" : "ghost"}
             className={`rounded-none border-b-2 px-6 h-12 font-semibold transition-all ${
               activeTab === "group" 
@@ -317,7 +369,7 @@ export default function GradingAnalysis() {
             onClick={() => setActiveTab("group")}
           >
             <FileSpreadsheet className="w-4 h-4 mr-2" /> Group Deep Flow
-          </Button>
+          </Button> */}
         </div>
 
         {/* ================= TAB CONTENT ================= */}
@@ -329,7 +381,7 @@ export default function GradingAnalysis() {
           <div className="space-y-6">
             
             {/* TABS 1: SESSION-WISE ANALYSIS */}
-            {activeTab === "session" && (
+            {/* {activeTab === "session" && (
               <div className="grid grid-cols-1 gap-6">
                 {filteredSessions.map((session) => (
                   <Card key={session.SessionId} className="p-6 border border-border/60 hover:shadow-md transition-shadow animate-fade-in">
@@ -351,10 +403,7 @@ export default function GradingAnalysis() {
                         { grade: "B+", count: session.Grades.BPlus },
                         { grade: "B", count: session.Grades.B },
                         { grade: "B-", count: session.Grades.BMinus },
-                        { grade: "C+", count: session.Grades.CPlus },
                         { grade: "C", count: session.Grades.C },
-                        { grade: "C-", count: session.Grades.CMinus },
-                        { grade: "D+", count: session.Grades.DPlus },
                         { grade: "D", count: session.Grades.D },
                         { grade: "F", count: session.Grades.F },
                       ].map((item) => (
@@ -374,7 +423,7 @@ export default function GradingAnalysis() {
                   </div>
                 )}
               </div>
-            )}
+            )} */}
 
             {/* TAB 2: SUPERVISOR-WISE PERFORMANCE */}
             {activeTab === "supervisor" && (
@@ -404,16 +453,12 @@ export default function GradingAnalysis() {
                               { grade: "B+", count: stats.grades.BPlus },
                               { grade: "B", count: stats.grades.B },
                               { grade: "B-", count: stats.grades.BMinus },
-                              { grade: "C+", count: stats.grades.CPlus },
                               { grade: "C", count: stats.grades.C },
-                              { grade: "C-", count: stats.grades.CMinus },
-                              { grade: "D+", count: stats.grades.DPlus },
                               { grade: "D", count: stats.grades.D },
                               { grade: "F", count: stats.grades.F },
                             ].map((item) => {
-                              if (item.count === 0) return null;
                               return (
-                                <div key={item.grade} className={`flex items-center gap-1 border px-2 py-0.5 rounded-lg bg-card text-xs font-semibold shadow-sm ${item.grade === "A+" ? "border-amber-300 bg-amber-50/20" : ""}`}>
+                                <div onClick={()=>showDetails(item,sup.SupervisorId) } key={item.grade} className={`flex items-center gap-1 border px-2 py-0.5 rounded-lg bg-card text-xs font-semibold shadow-sm ${item.grade === "A+" ? "border-amber-300 bg-amber-50/20" : ""}`}>
                                   <span className={`px-1.5 py-0.2 border rounded-full text-[10px] ${getGradeBadgeClass(item.grade)}`}>
                                     {item.grade}
                                   </span>
@@ -438,77 +483,8 @@ export default function GradingAnalysis() {
               </div>
             )}
 
-            {/* TAB 3: GROUP DEEP FLOW */}
-            {activeTab === "group" && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 gap-6 animate-fade-in">
-                  {filteredGroups.map((group) => (
-                    <Card key={group.GroupId} className="p-6 border border-border/60 hover:shadow-md transition-shadow">
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b gap-4">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <Badge variant="outline" className="bg-primary/5 text-primary text-xs font-semibold px-2 py-0.5">
-                              Group {group.GroupId}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">{group.SessionName}</span>
-                          </div>
-                          <h4 className="font-bold text-base text-foreground tracking-tight">{group.ProjectTitle}</h4>
-                        </div>
-                        <div className="flex flex-col items-start md:items-end text-sm">
-                          <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Supervisor</span>
-                          <span className="font-semibold text-foreground">{group.SupervisorName}</span>
-                        </div>
-                      </div>
-
-                      {/* MEMBERS LIST WITH GRADES */}
-                      <div className="mt-4 overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                          <thead>
-                            <tr className="text-xs text-muted-foreground uppercase tracking-wider border-b">
-                              <th className="py-2.5">Student Name</th>
-                              <th className="py-2.5">Reg Num</th>
-                              <th className="py-2.5 text-center">FYP-1 Grade</th>
-                              <th className="py-2.5 text-center">FYP-2 Grade</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {group.Members.map((member) => (
-                              <tr key={member.RegNum} className="border-b last:border-none hover:bg-muted/5 transition-colors">
-                                <td className="py-3 font-semibold text-foreground">{member.StudentName}</td>
-                                <td className="py-3 text-muted-foreground font-mono text-xs">{member.RegNum}</td>
-                                <td className="py-3 text-center">
-                                  {member.Fyp1Grade ? (
-                                    <span className={`inline-block border px-2 py-0.5 rounded-full text-xs ${getGradeBadgeClass(member.Fyp1Grade)}`}>
-                                      {member.Fyp1Grade}
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground italic">Pending</span>
-                                  )}
-                                </td>
-                                <td className="py-3 text-center">
-                                  {member.Fyp2Grade ? (
-                                    <span className={`inline-block border px-2 py-0.5 rounded-full text-xs ${getGradeBadgeClass(member.Fyp2Grade)}`}>
-                                      {member.Fyp2Grade}
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground italic">Pending</span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </Card>
-                  ))}
-                  {filteredGroups.length === 0 && (
-                    <div className="py-12 text-center text-muted-foreground font-medium border rounded-xl bg-card">
-                      No groups found matching search criteria.
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+          
+            {/*  */}
 
           </div>
         )}

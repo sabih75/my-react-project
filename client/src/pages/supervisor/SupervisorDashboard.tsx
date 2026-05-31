@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { AppBar } from "@/components/AppBar";
 import { useLocation } from "wouter";
 import axios from "axios";
+import { Lightbulb, Sparkles } from "lucide-react";
 import SupervisorLayout from "./SupervisorLayout";
 
 const API_BASE = "http://localhost/ProgressMonitoringProject/api";
@@ -84,6 +85,29 @@ export default function SupervisorDashboard() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* ================= SUGGEST PROJECT ACTION BANNER ================= */}
+          <div 
+            onClick={() => setLocation("/supervisor/suggest-project")}
+            className="bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-purple-500/10 border border-blue-500/20 hover:border-blue-500/40 rounded-3xl p-5 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 group-hover:scale-110 transition-transform duration-300">
+                <Lightbulb className="w-6 h-6 animate-pulse" />
+              </div>
+              <div>
+                <h4 className="text-base font-extrabold text-foreground flex items-center gap-1.5">
+                  Suggest a Project Idea <Sparkles className="w-4 h-4 text-primary" />
+                </h4>
+                <p className="text-sm text-muted-foreground font-medium mt-0.5">
+                  Have an innovative thesis or application concept? Propose a new project idea for this session.
+                </p>
+              </div>
+            </div>
+            <button className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-extrabold text-sm shadow-sm transition-all duration-200 shrink-0 self-end sm:self-center">
+              Suggest Idea
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

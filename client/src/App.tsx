@@ -23,6 +23,7 @@ import AssignTask from "@/pages/supervisor/AssignTask";
 import CommitteeDashboard from "@/pages/committee/CommitteeDashboard";
 import StudentSelection from "@/pages/committee/StudentSelection";
 import Allocation from "@/pages/committee/Allocation";
+import SupervisorAllocation from "@/pages/committee/SupervisorAllocation";
 import MarkAttendance from "@/pages/committee/MarkAttendance";
 import GroupList from "@/pages/committee/GroupList";
 
@@ -60,8 +61,8 @@ import EditMeetings from "./pages/supervisor/EditMeetings";
 import CommitteeMeetingSchedule from "./pages/committee/CommitteeMeetingSchedule";
 import CommitteeMeetingQueue from "./pages/committee/CommitteeMeetingQueue";
 import AssignCriteria from "./pages/Director/AssignCriteria";
-import CommitteeHeadMeetingQueue from "./pages/Director/CommitteeHeadMeetingQueue";
 import FinalTaskAllocation from "./pages/Director/FinalTaskAllocation";
+import DirectorMidTaskAllocation from "./pages/Director/MidTaskAllocation";
 import SemesterMeetingScheduler from "./pages/committee/PreScheduleMeetingScreen";
 import ViewEditCriteria from "./pages/Director/ViewEditCriteria";
 import MidTaskAllocation from "./pages/supervisor/MidTaskAllocationFyp2";
@@ -69,7 +70,9 @@ import AttendanceProgress from "./pages/supervisor/AttendanceProgress";
 import StudentProgress from "./pages/Director/StudentProgress";
 import DirectorGroupDetails from "./pages/Director/DirectorGroupDetails";
 import AttendanceGroupDetails from "./pages/supervisor/AttendanceGroupDetails";
-import MidTaskEvaluation from "./pages/supervisor/MidTaskEvaluation";
+// import MidTaskEvaluation from "./pages/supervisor/MidTaskEvaluation";
+import GeneralTaskEvaluation from "./pages/Director/GeneralTaskEvaluation";
+import GeneralTaskAllocationDashboard from "./pages/Director/GeneralTaskAllocationDashboard";
 import CreateSemesterAgenda from "./pages/Director/CreateSemesterAgenda";
 import ManageGroup from "./pages/student/ManageGroup";
 import GroupAssignmentScreen from "./pages/committee/GroupAssignmentScreen";
@@ -80,6 +83,8 @@ import DirectorGroupList from "./pages/Director/DirectorGroupList";
 import CommitteeHeadProfile from "./pages/Director/CommitteeHeadProfile";
 import SupervisorProfile from "./pages/supervisor/SupervisorProfile";
 import SupervisorGroupDetail from "./pages/supervisor/SupervisorGroupDetail";
+import SuggestProject from "./pages/supervisor/SuggestProject";
+import ProjectAllocation from "./pages/Director/ProjectAllocation";
 import DirectorGroupDetail from "./pages/Director/DirectorGroupDetails";
 import CommitteeHeadMeeting from "./pages/Director/ComitteeHeadMeetings";
 import EvaluationScreen from "./pages/committee/evaluationScreen";
@@ -88,6 +93,7 @@ import Fyp2ViewEditCriteria from "./pages/Director/Fyp2ViewEditCriteria";
 import DirectorEvaluationScreen from "./pages/Director/DirectorEvaluationScreen";
 import CommitteeMyMeetings from "./pages/committee/CommitteeMyMeetings";
 import GradingAnalysis from "./pages/Director/GradingAnalysis";
+import SupervisorGradeList from "./pages/Director/SupervisorGradeList";
 
 
 function Router() {
@@ -120,6 +126,10 @@ function Router() {
       <Route path="/supervisor/meetings" component={MeetingList} />
       <Route path="/supervisor/meeting-detail" component={MeetingDetail} />
       <Route path="/supervisor/tasks" component={SupervisorTasks} />
+      <Route
+        path="/supervisor/evaluation/:meetingId/:groupId/:parameterId/:activeFYP"
+        component={EvaluationScreen}
+      />
 
       <Route path="/supervisor/queue" component={QueueDashboard} />
       <Route path="/supervisor/profile" component={SupervisorProfile} />
@@ -132,14 +142,20 @@ function Router() {
         path="/committee/group-details"
         component={DirectorGroupDetails}
       />
+<Route
+        path="/director/gradeDetails/:supervisorId/:grade"
+        component={SupervisorGradeList}
+      />
+
+
       <Route
         path="/supervisor/attendance/group-details"
         component={AttendanceGroupDetails}
       />
-      <Route
+      {/* <Route
         path="/supervisor/mid-task-evaluation"
         component={MidTaskEvaluation}
-      />
+      /> */}
       <Route
         path="/committee/student-progress"
         component={StudentProgress}
@@ -157,6 +173,7 @@ function Router() {
       <Route path="/committee/dashboard" component={CommitteeDashboard} />
       <Route path="/committee/student-selection" component={StudentSelection} />
       <Route path="/committee/allocation/:groupId" component={Allocation} />
+      <Route path="/committee/supervisor-allocation" component={SupervisorAllocation} />
       <Route path="/committee/group-detail/:groupId" component={GroupDetail} />
       <Route path="/committee/groups/:activeFyp" component={GroupList} />
       <Route path="/director/groups/:activeFyp" component={DirectorGroupList} />
@@ -223,6 +240,8 @@ function Router() {
 
       <Route path="/director/dashboard" component={DirectorDashboard} />
       <Route path="/supervisor/meeting-details" component={SupervisorMeetingDetails} />
+      <Route path="/supervisor/suggest-project" component={SuggestProject} />
+      <Route path="/director/project-allocation" component={ProjectAllocation} />
 
 
 
@@ -236,8 +255,13 @@ function Router() {
       />
 
       <Route path="/director/grading-analysis" component={GradingAnalysis} />
+      <Route path="/committee-head/general-task-evaluation" component={GeneralTaskEvaluation} />
+      <Route path="/supervisor/general-task-evaluation" component={GeneralTaskEvaluation} />
+      <Route path="/committee/general-task-evaluation" component={GeneralTaskEvaluation} />
+      <Route path="/committee-head/general-task-allocation" component={GeneralTaskAllocationDashboard} />
 
       <Route path="/committee/final-task/:selectedGroup" component={FinalTaskAllocation} />
+      <Route path="/committee/mid-task/:selectedGroup" component={DirectorMidTaskAllocation} />
 
 
       {/* Common Routes */}

@@ -364,98 +364,56 @@ export default function CommitteeMeetingQueue() {
           )}
 
           {meetingDetails && !detailsLoading && (
-            <div className="grid md:grid-cols-2 gap-6">
-              
-              {/* Meeting Details Card */}
-              <div className="bg-card border rounded-3xl p-6 shadow-sm flex flex-col justify-center">
-                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                  <Info className="w-5 h-5 text-primary" /> Meeting Info
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
+            <div className="bg-card border rounded-3xl p-6 shadow-sm flex flex-col justify-center">
+              <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                <Info className="w-5 h-5 text-primary" /> Meeting Info
+              </h3>
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <ClipboardList className="w-4 h-4 mt-1 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase">Description</p>
+                    <p className="text-sm font-medium">{meetingDetails.meetingDescription || "No description provided."}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <MapPin className="w-4 h-4 mt-1 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase">Venue</p>
+                    <p className="text-sm font-medium">{meetingDetails.venue}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Clock className="w-4 h-4 mt-1 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase">Schedule</p>
+                    <p className="text-sm font-medium">{meetingDetails.days} ({meetingDetails.startTime} - {meetingDetails.endTime})</p>
+                  </div>
+                </div>
+
+                {meetingDetails.isFileRequired && (
+                  <div className="flex items-start gap-3 pt-3 border-t border-border/50">
                     <ClipboardList className="w-4 h-4 mt-1 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase">Description</p>
-                      <p className="text-sm font-medium">{meetingDetails.meetingDescription || "No description provided."}</p>
+                    <div className="w-full">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase">Presentation File</p>
+                      {scheduleDetails?.filePath ? (
+                        <a
+                          href={`http://localhost/ProgressMonitoringProject${scheduleDetails.filePath}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-100 transition mt-2"
+                        >
+                          Download Presentation PPT
+                        </a>
+                      ) : (
+                        <p className="text-xs font-semibold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200 mt-2">
+                          ⚠️ PPT not uploaded yet
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <MapPin className="w-4 h-4 mt-1 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase">Venue</p>
-                      <p className="text-sm font-medium">{meetingDetails.venue}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Clock className="w-4 h-4 mt-1 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase">Schedule</p>
-                      <p className="text-sm font-medium">{meetingDetails.days} ({meetingDetails.startTime} - {meetingDetails.endTime})</p>
-                    </div>
-                  </div>
-
-                  {meetingDetails.isFileRequired && (
-                    <div className="flex items-start gap-3 pt-3 border-t border-border/50">
-                      <ClipboardList className="w-4 h-4 mt-1 text-muted-foreground" />
-                      <div className="w-full">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase">Presentation File</p>
-                        {scheduleDetails?.filePath ? (
-                          <a
-                            href={`http://localhost/ProgressMonitoringProject${scheduleDetails.filePath}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-100 transition mt-2"
-                          >
-                            Download Presentation PPT
-                          </a>
-                        ) : (
-                          <p className="text-xs font-semibold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200 mt-2">
-                            ⚠️ PPT not uploaded yet
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
-
-              {/* Evaluation Panel Card */}
-              {evaluationParams.length > 0 ? (
-                <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-3xl p-6 shadow-sm">
-                  <div className="flex justify-between items-center mb-5">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                      <Target className="w-5 h-5 text-primary" /> Evaluation Panel
-                    </h3>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {evaluationParams.map((param) => {
-                      const isCompleted = param.IsGraded === true;
-                      return (
-                        <div key={param.ParameterID} className="bg-background border rounded-xl p-4 flex justify-between items-center shadow-sm hover:shadow-md transition">
-                          <div>
-                            <p className="font-bold text-sm text-foreground">{param.ParameterName}</p>
-                            <p className="text-xs text-muted-foreground font-medium mt-1">{param.Percentage}% Weightage</p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant={isCompleted ? "outline" : "default"}
-                            className={isCompleted ? "text-green-600 border-green-200 hover:bg-green-50" : "shadow-md"}
-                            onClick={() => setLocation(`/committee/evaluation/${selectedMeeting}/${selectedGroup}/${param.ParameterID}/${activeFYP}`)}
-                          >
-                            {isCompleted ? <><CheckCircle className="w-4 h-4 mr-2"/> Graded</> : "Evaluate"}
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                 <div className="bg-muted/20 border rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center">
-                    <AlertCircle className="w-8 h-8 text-muted-foreground mb-3 opacity-50" />
-                    <p className="text-sm font-medium text-muted-foreground">No evaluation parameters set for this meeting type.</p>
-                 </div>
-              )}
             </div>
           )}
 

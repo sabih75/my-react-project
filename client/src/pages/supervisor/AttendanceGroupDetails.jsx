@@ -14,7 +14,8 @@ export default function AttendanceGroupDetails() {
   const supervisorId = user?.id;
 
   const params = new URLSearchParams(window.location.search);
-  const selectedFYP = params.get("fyp") || "FYP-1";
+  const [selectedFYP, setSelectedFYP] = useState(params.get("fyp") || "FYP-1");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (supervisorId) loadGroups();
@@ -23,6 +24,7 @@ export default function AttendanceGroupDetails() {
   // ================= LOAD GROUPS + ATTENDANCE =================
   const loadGroups = async () => {
     try {
+      setLoading(true);
       const res = await axios.get(
         `${API_BASE}/supervisor/getAllGroups/${selectedFYP}/${supervisorId}`
       );
@@ -65,6 +67,8 @@ export default function AttendanceGroupDetails() {
     } catch (err) {
       console.error(err);
       setGroups([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -81,9 +85,45 @@ export default function AttendanceGroupDetails() {
 
       <div className="p-4 space-y-6">
 
-        {groups.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No groups found.
+        {/* FYP Toggle Switch */}
+        <div className="flex bg-muted/40 p-1.5 rounded-2xl border border-muted/60 max-w-sm mx-auto shadow-sm">
+          <button
+            onClick={() => {
+              setSelectedFYP("FYP-1");
+              window.history.replaceState(null, "", `/supervisor/group-attendance?fyp=FYP-1`);
+            }}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
+              selectedFYP === "FYP-1"
+                ? "bg-card text-foreground shadow-sm border border-muted/10"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            FYP-1
+          </button>
+          <button
+            onClick={() => {
+              setSelectedFYP("FYP-2");
+              window.history.replaceState(null, "", `/supervisor/group-attendance?fyp=FYP-2`);
+            }}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${
+              selectedFYP === "FYP-2"
+                ? "bg-card text-foreground shadow-sm border border-muted/10"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            FYP-2
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="space-y-4">
+            {[1, 2].map((i) => (
+              <div key={i} className="h-32 bg-card animate-pulse border rounded-2xl" />
+            ))}
+          </div>
+        ) : groups.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-10 bg-card border border-dashed rounded-xl">
+            No groups found for {selectedFYP}.
           </p>
         ) : (
           groups.map((group, i) => (

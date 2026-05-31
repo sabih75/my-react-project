@@ -131,6 +131,11 @@ export default function DirectorDashboard() {
             label="Grading Analysis"
             onClick={() => setLocation("/director/grading-analysis")}
           />
+          <ActionBtn
+            icon={<ClipboardList />}
+            label="Project Allocation"
+            onClick={() => setLocation("/director/project-allocation")}
+          />
 
           {/* ONLY FYP-2 */}
           {activeFYP === "FYP-2" && (

@@ -30,6 +30,7 @@ namespace ProgressMonitoringProject.Models
         public Nullable<System.DateTime> meetingDate { get; set; }
         public Nullable<int> isAttend { get; set; }
         public string type { get; set; }
+        public string studentID { get; set; }
     
         public virtual ComiteeMeeting ComiteeMeeting { get; set; }
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]

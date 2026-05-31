@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SupervisorLayout from "./SupervisorLayout";
 import { AppBar } from "@/components/AppBar";
 import axios from "axios";
@@ -33,6 +34,7 @@ export default function ScheduleMeeting() {
   const [groups, setGroups] = useState<any[]>([]);
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const supervisorId = user?.id;
+  const [fypType, setFypType] = useState("FYP-1");
   const [mode, setMode] = useState("group"); // group | individual
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -63,6 +65,14 @@ export default function ScheduleMeeting() {
   const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paramGroupId = params.get("groupId");
+    if (paramGroupId) {
+      setMeeting(prev => ({ ...prev, groupId: paramGroupId }));
+    }
+  }, []);
+
+  useEffect(() => {
     if (mode === "individual" && meeting.groupId) {
       fetchStudents(meeting.groupId);
     }
@@ -72,14 +82,15 @@ export default function ScheduleMeeting() {
     if (supervisorId) {
       fetchGroups(supervisorId);
     }
-  }, [supervisorId]);
+  }, [supervisorId, fypType]);
 
   const fetchGroups = async (supId: string) => {
     try {
       const res = await axios.get(
-        `${API_BASE}/supervisor/GetSupervisorGroups/${supId}/FYP-1`
+        `${API_BASE}/supervisor/GetSupervisorGroups/${supId}/${fypType}`
       );
       setGroups(res.data);
+      setMeeting(prev => ({ ...prev, groupId: "", memberId: "" }));
     } catch {
       console.error("Failed to fetch groups");
     }
@@ -177,6 +188,17 @@ export default function ScheduleMeeting() {
 
         <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6">
           <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-8">
+
+            {/* FYP PHASE SELECT */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Subject Type</Label>
+              <Tabs value={fypType} onValueChange={setFypType} className="w-full">
+                <TabsList className="grid grid-cols-2 h-11 bg-muted p-1">
+                  <TabsTrigger value="FYP-1" className="rounded-md font-bold">FYP-1</TabsTrigger>
+                  <TabsTrigger value="FYP-2" className="rounded-md font-bold">FYP-2</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
 
             {/* MODE SELECTOR */}
             <div className="flex bg-muted rounded-xl p-1.5 h-12">

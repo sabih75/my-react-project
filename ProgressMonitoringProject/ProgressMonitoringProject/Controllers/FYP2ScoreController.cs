@@ -359,7 +359,7 @@ namespace ProgressMonitoringProject.Controllers
                         {
                             s.id,
                             s.name,
-
+                            s.percentage
                         })
                         .ToList()
                 })
@@ -494,6 +494,37 @@ namespace ProgressMonitoringProject.Controllers
         }
 
         [HttpGet]
+        [Route("get-all-saved-marks/{parameterId}")]
+        public IHttpActionResult GetAllSavedMarks(int parameterId)
+        {
+            try
+            {
+                var currentSession = db.Sessions.OrderByDescending(s => s.id).FirstOrDefault();
+                if (currentSession == null) return BadRequest("No active session");
+
+                var marks = (from m in db.Fyp2StudentEvaluationMarks
+                             where m.sessionID == currentSession.id && m.parameterID == parameterId
+                             join u in db.Users on m.evaluatorID equals u.id into userGroup
+                             from u in userGroup.DefaultIfEmpty()
+                             select new
+                             {
+                                 studentEnrollID = m.studentEnrollID,
+                                 subParameterID = m.subParameterID,
+                                 obtainedMarks = m.obtainedMarks,
+                                 maxMarks = m.maxMarks,
+                                 evaluatorID = m.evaluatorID,
+                                 evaluatorRole = u != null ? u.role : "Unknown"
+                             }).ToList();
+
+                return Ok(marks);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpGet]
         [Route("groups/{groupId}")]
         public IHttpActionResult GetGroup(int groupId)
         {
@@ -552,7 +583,17 @@ namespace ProgressMonitoringProject.Controllers
                         finalTask = db.Fyp2Task
                             .Where(t =>
                                 t.groupId == g.id &&
-                                t.sessionID == currentSession.id
+                                t.sessionID == currentSession.id &&
+                                t.taskTitle == "Final Task"
+                            )
+                            .Select(t => t.taskDescription)
+                            .FirstOrDefault() ?? "",
+
+                        midTask = db.Fyp2Task
+                            .Where(t =>
+                                t.groupId == g.id &&
+                                t.sessionID == currentSession.id &&
+                                (t.taskTitle == "MidTask" || t.taskTitle == "Midtask")
                             )
                             .Select(t => t.taskDescription)
                             .FirstOrDefault() ?? "",
@@ -846,27 +887,27 @@ namespace ProgressMonitoringProject.Controllers
                 // ============================
                 int taskProgress = 0;
 
-                var totalTasks = db.Tasks
-                    .Count(t =>
+                var studentTasks = db.Tasks
+                    .Where(t =>
                         t.groupID == groupId &&
                         (
                             t.studentID == null ||
                             t.studentID == studentId
-                        ));
+                        ))
+                    .ToList();
 
-                var completedTasks = db.Tasks
-                    .Count(t =>
-                        t.groupID == groupId &&
-                        (
-                            t.studentID == null ||
-                            t.studentID == studentId
-                        ) &&
-                        t.taskStatus == "Completed"
-                    );
-
-                if (totalTasks > 0)
+                if (studentTasks.Count > 0)
                 {
-                    taskProgress = (completedTasks * 100) / totalTasks;
+                    double totalScoreSum = 0;
+                    foreach (var t in studentTasks)
+                    {
+                        var eval = db.TaskEvaluations.FirstOrDefault(te => te.taskID == t.id);
+                        if (eval != null)
+                        {
+                            totalScoreSum += eval.score ?? 0;
+                        }
+                    }
+                    taskProgress = (int)Math.Round(totalScoreSum / studentTasks.Count);
                 }
 
                 // ============================
@@ -915,17 +956,15 @@ namespace ProgressMonitoringProject.Controllers
                     return BadRequest("Invalid task");
 
                 var list = db.Sessions.OrderByDescending(o => o.id).Select(e => new {
-
                     e.id,
                     e.name
-
-
                 }).FirstOrDefault();
 
+                string title = string.IsNullOrWhiteSpace(model.taskTitle) ? "Final Task" : model.taskTitle;
 
                 // 🔍 Check if task already exists
                 var existingTask = db.Fyp2Task
-                    .FirstOrDefault(t => t.groupId == model.groupId && t.sessionID == list.id);
+                    .FirstOrDefault(t => t.groupId == model.groupId && t.sessionID == list.id && t.taskTitle == title);
 
                 if (existingTask != null)
                 {
@@ -940,7 +979,7 @@ namespace ProgressMonitoringProject.Controllers
                     {
                         groupId = model.groupId,
                         taskDescription = model.taskDescription,
-                        taskTitle = "Final Task", // optional
+                        taskTitle = title,
                         assignedDate = DateTime.Now,
                         sessionID = list.id
                     };
@@ -1092,6 +1131,7 @@ namespace ProgressMonitoringProject.Controllers
         {
             public int groupId { get; set; }
             public string taskDescription { get; set; }
+            public string taskTitle { get; set; }
         }
         public class EvaluationParameterDto
         {
@@ -1173,7 +1213,7 @@ namespace ProgressMonitoringProject.Controllers
         }
         [HttpPost]
         [Route("calculate-final-fyp2")]
-        public IHttpActionResult CalculateFinalFyp2()
+        public IHttpActionResult CalculateFinalFyp2([FromUri] bool includeSupervisorScore = false)
         {
             var currentSession = db.Sessions
                 .OrderByDescending(s => s.id)
@@ -1249,9 +1289,40 @@ namespace ProgressMonitoringProject.Controllers
                             (parameterTotal * (decimal)parameter.percentage) / 100m;
                     }
 
-                    // ============================
-                    // FINAL GRADE
-                    // ============================
+                    // 🔹 Incorporate Supervisor Score if enabled (80% Director, 20% Supervisor)
+                    if (includeSupervisorScore)
+                    {
+                        var enrollment = db.Enrollments.FirstOrDefault(e => e.id == studentGroup.Key);
+                        if (enrollment != null)
+                        {
+                            var studentId = enrollment.studentID;
+                            var groupMember = db.GroupMembers.FirstOrDefault(gm => gm.studentID == studentId);
+                            if (groupMember != null)
+                            {
+                                int groupId = (int)groupMember.groupID;
+                                var tasks = db.Tasks.Where(t => t.groupID == groupId && (t.studentID == null || t.studentID == studentId)).ToList();
+                                if (tasks.Count > 0)
+                                {
+                                    double totalTaskScore = 0;
+                                    int evaluatedTasksCount = 0;
+                                    foreach (var t in tasks)
+                                    {
+                                        var eval = db.TaskEvaluations.FirstOrDefault(te => te.taskID == t.id);
+                                        if (eval != null && eval.score != null)
+                                        {
+                                            totalTaskScore += eval.score.Value;
+                                            evaluatedTasksCount++;
+                                        }
+                                    }
+                                    if (evaluatedTasksCount > 0)
+                                    {
+                                        decimal avgSupScore = (decimal)(totalTaskScore / evaluatedTasksCount);
+                                        finalScore = (finalScore * 0.8m) + (avgSupScore * 0.2m);
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     var roundedScore = Math.Round(finalScore, 2);
 

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import axios from "axios";
 
 const API_BASE = "http://localhost/ProgressMonitoringProject/api";
 
 function SupervisorDashboard() {
-
   const { groupId } = useParams();
+  const [, setLocation] = useLocation();
 
   const [supervisors, setSupervisors] = useState([]);
   const [mode, setMode] = useState("auto");
@@ -41,14 +41,13 @@ function SupervisorDashboard() {
   };
 
   const handleAllocation = async () => {
-
     let supervisorToAssign = null;
 
     if (mode === "auto") {
       supervisorToAssign = autoAllocate();
     } else {
       supervisorToAssign = supervisors.find(
-        s => s.SupervisorId === selectedSupervisor
+        (s) => s.SupervisorId === selectedSupervisor
       );
     }
 
@@ -70,6 +69,11 @@ function SupervisorDashboard() {
       setAllocatedTo(supervisorToAssign.SupervisorName);
       fetchSupervisors(); // refresh counts
 
+      // Back to meeting queue after brief delay
+      setTimeout(() => {
+        setLocation("/committee/meeting-queue");
+      }, 1500);
+
     } catch (error) {
       console.error("Allocation failed:", error);
       alert("Allocation failed");
@@ -78,7 +82,6 @@ function SupervisorDashboard() {
 
   return (
     <div style={{ padding: "40px", fontFamily: "Arial" }}>
-
       <h2>Allocate Group {groupId}</h2>
 
       {/* Mode Selection */}
@@ -106,7 +109,7 @@ function SupervisorDashboard() {
 
       {/* Supervisors List */}
       <div style={{ border: "1px solid #ccc", padding: "20px" }}>
-        {supervisors.map(s => (
+        {supervisors.map((s) => (
           <div
             key={s.SupervisorId}
             style={{
@@ -156,7 +159,6 @@ function SupervisorDashboard() {
           Allocated To: {allocatedTo}
         </div>
       )}
-
     </div>
   );
 }

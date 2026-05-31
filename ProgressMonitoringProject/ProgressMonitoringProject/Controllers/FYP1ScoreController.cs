@@ -117,7 +117,7 @@ namespace ProgressMonitoringProject.Controllers
         }
         [HttpPost]
         [Route("calculate-final-fyp1")]
-        public IHttpActionResult CalculateFinalFyp1()
+        public IHttpActionResult CalculateFinalFyp1([FromUri] bool includeSupervisorScore = false)
         {
             // Fetch latest session automatically
             var currentSession = db.Sessions.OrderByDescending(s => s.id).FirstOrDefault();
@@ -161,6 +161,41 @@ namespace ProgressMonitoringProject.Controllers
 
                         // Apply the main parameter weightage
                         finalScore += (parameterTotal * (decimal)(parameter.percentage ?? 0)) / 100m;
+                    }
+
+                    // 🔹 Incorporate Supervisor Score if enabled (80% Director, 20% Supervisor)
+                    if (includeSupervisorScore)
+                    {
+                        var enrollment = db.Enrollments.FirstOrDefault(e => e.id == g.Key);
+                        if (enrollment != null)
+                        {
+                            var studentId = enrollment.studentID;
+                            var groupMember = db.GroupMembers.FirstOrDefault(gm => gm.studentID == studentId);
+                            if (groupMember != null)
+                            {
+                                int groupId = (int)groupMember.groupID;
+                                var tasks = db.Tasks.Where(t => t.groupID == groupId && (t.studentID == null || t.studentID == studentId)).ToList();
+                                if (tasks.Count > 0)
+                                {
+                                    double totalTaskScore = 0;
+                                    int evaluatedTasksCount = 0;
+                                    foreach (var t in tasks)
+                                    {
+                                        var eval = db.TaskEvaluations.FirstOrDefault(te => te.taskID == t.id);
+                                        if (eval != null && eval.score != null)
+                                        {
+                                            totalTaskScore += eval.score.Value;
+                                            evaluatedTasksCount++;
+                                        }
+                                    }
+                                    if (evaluatedTasksCount > 0)
+                                    {
+                                        decimal avgSupScore = (decimal)(totalTaskScore / evaluatedTasksCount);
+                                        finalScore = (finalScore * 0.8m) + (avgSupScore * 0.2m);
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     return new
@@ -609,6 +644,88 @@ namespace ProgressMonitoringProject.Controllers
                     .ToList();
 
                 return Ok(marks);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpGet]
+        [Route("student-evaluation-history/{enrollmentId}")]
+        public IHttpActionResult GetStudentEvaluationHistory(int enrollmentId)
+        {
+            try
+            {
+                var enrollment = db.Enrollments.FirstOrDefault(e => e.id == enrollmentId);
+                if (enrollment == null)
+                    return BadRequest("Student enrollment not found");
+
+                var studentId = enrollment.studentID;
+                var currentSession = db.Sessions.OrderByDescending(s => s.id).FirstOrDefault();
+                if (currentSession == null)
+                    return BadRequest("No active session found");
+
+                var groupMember = db.GroupMembers.FirstOrDefault(gm => gm.studentID == studentId);
+                if (groupMember == null)
+                    return BadRequest("Student group not found");
+
+                int groupId = (int)groupMember.groupID;
+
+                // ==========================================
+                // 1. SUPERVISOR HISTORY
+                // ==========================================
+                var supervisorHistory = (from t in db.Tasks
+                                         join te in db.TaskEvaluations on t.id equals te.taskID into teJoin
+                                         from eval in teJoin.DefaultIfEmpty()
+                                         where t.groupID == groupId && (t.studentID == null || t.studentID == studentId)
+                                         orderby t.dueDate descending
+                                         select new
+                                         {
+                                             TaskTitle = t.title,
+                                             DueDate = t.dueDate,
+                                             Status = t.taskStatus,
+                                             ProgressStatus = eval != null ? eval.progressStatus : "Initial",
+                                             Score = eval != null ? (int?)eval.score : null,
+                                             Remarks = eval != null ? eval.taskRemarks : "No remarks entered"
+                                         }).ToList();
+
+                // ==========================================
+                // 2. COMMITTEE HISTORY
+                // ==========================================
+                var committeeFyp1 = (from m in db.Fyp1StudentEvaluationMarks
+                                     where m.studentEnrollID == enrollmentId
+                                     select new
+                                     {
+                                         MeetingTitle = db.ComiteeMeetings.Where(cm => cm.id == m.meetingID).Select(cm => cm.title).FirstOrDefault() ?? "Committee Meeting",
+                                         ParameterName = db.Fyp1EvaluationParameters.Where(p => p.id == m.parameterID).Select(p => p.name).FirstOrDefault() ?? "Evaluation Parameter",
+                                         SubParameterName = db.Fyp1SubParameter.Where(sp => sp.id == m.subParameterID).Select(sp => sp.name).FirstOrDefault() ?? "Sub Parameter",
+                                         ObtainedMarks = m.obtainedMarks,
+                                         MaxMarks = m.maxMarks,
+                                         Evaluator = db.Users.Where(u => u.id == m.evaluatorID).Select(u => u.name).FirstOrDefault() ?? m.evaluatorID,
+                                         Remarks = db.FypStudentEvaluationRemarks.Where(r => r.studentEnrollID == enrollmentId && r.meetingID == m.meetingID && r.evaluatorID == m.evaluatorID).Select(r => r.remarks).FirstOrDefault() ?? "No remarks entered"
+                                     }).ToList();
+
+                var committeeFyp2 = (from m in db.Fyp2StudentEvaluationMarks
+                                     where m.studentEnrollID == enrollmentId
+                                     select new
+                                     {
+                                         MeetingTitle = "FYP-2 Evaluation",
+                                         ParameterName = db.Fyp2EvaluationParameters.Where(p => p.id == m.parameterID).Select(p => p.name).FirstOrDefault() ?? "Evaluation Parameter",
+                                         SubParameterName = db.Fyp2SubParameter.Where(sp => sp.id == m.subParameterID).Select(sp => sp.name).FirstOrDefault() ?? "Sub Parameter",
+                                         ObtainedMarks = m.obtainedMarks,
+                                         MaxMarks = m.maxMarks,
+                                         Evaluator = db.Users.Where(u => u.id == m.evaluatorID).Select(u => u.name).FirstOrDefault() ?? m.evaluatorID,
+                                         Remarks = db.Fyp2StudentEvaluationRemarks.Where(r => r.studentEnrollID == enrollmentId && r.evaluatorID == m.evaluatorID).Select(r => r.remarks).FirstOrDefault() ?? "No remarks entered"
+                                     }).ToList();
+
+                var committeeHistory = committeeFyp1.Cast<object>().Concat(committeeFyp2.Cast<object>()).ToList();
+
+                return Ok(new
+                {
+                    supervisorHistory,
+                    committeeHistory
+                });
             }
             catch (Exception ex)
             {

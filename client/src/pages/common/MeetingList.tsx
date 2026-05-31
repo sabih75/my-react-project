@@ -16,6 +16,9 @@ export default function MeetingList() {
   const [committeeData, setCommitteeData] = useState<{ upcoming: any[]; today: any[]; past: any[] }>({ upcoming: [], today: [], past: [] });
   const [supervisorData, setSupervisorData] = useState<{ upcoming: any[]; today: any[]; past: any[] }>({ upcoming: [], today: [], past: [] });
 
+  const studentData = localStorage.getItem("user");
+  const studentId = studentData ? JSON.parse(studentData).id : "";
+
   useEffect(() => {
     fetchCommitteeMeetings();
     fetchSupervisorMeetings();
@@ -24,9 +27,9 @@ export default function MeetingList() {
   const fetchCommitteeMeetings = async () => {
     try {
       const [upcomingRes, todayRes, pastRes] = await Promise.all([
-        axios.get(`http://localhost/ProgressMonitoringProject/api/committee-meetings/meetings?type=${type}&groupId=${groupId}&filter=upcoming`),
-        axios.get(`http://localhost/ProgressMonitoringProject/api/committee-meetings/meetings?type=${type}&groupId=${groupId}&filter=today`),
-        axios.get(`http://localhost/ProgressMonitoringProject/api/committee-meetings/meetings?type=${type}&groupId=${groupId}&filter=past`),
+        axios.get(`http://localhost/ProgressMonitoringProject/api/committee-meetings/meetings?type=${type}&groupId=${groupId}&filter=upcoming&studentId=${studentId}`),
+        axios.get(`http://localhost/ProgressMonitoringProject/api/committee-meetings/meetings?type=${type}&groupId=${groupId}&filter=today&studentId=${studentId}`),
+        axios.get(`http://localhost/ProgressMonitoringProject/api/committee-meetings/meetings?type=${type}&groupId=${groupId}&filter=past&studentId=${studentId}`),
       ]);
 
       setCommitteeData({

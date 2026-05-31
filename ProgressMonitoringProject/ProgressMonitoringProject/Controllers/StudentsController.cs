@@ -1,4 +1,4 @@
-﻿using ProgressMonitoringProject.Models;
+using ProgressMonitoringProject.Models;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Web.Http;
@@ -30,6 +30,9 @@ namespace ProgressMonitoringProject.Controllers
                     t.assignDate,
                     t.dueDate,
                     t.taskStatus,
+                    t.isPptRequired,
+                    submissionFilePath = db.TaskEvaluations.Where(te => te.taskID == t.id).Select(te => te.submissionFilePath).FirstOrDefault(),
+                    progress = db.TaskEvaluations.Where(te => te.taskID == t.id).Select(te => (int?)te.score).FirstOrDefault() ?? 0,
                     remarks = db.TaskEvaluations.Where(te => te.taskID == t.id).Select(te => te.taskRemarks).FirstOrDefault(),
                 })
                 .FirstOrDefault();
@@ -132,7 +135,8 @@ namespace ProgressMonitoringProject.Controllers
                         {
                             m.Student.name,
                             m.Student.regNum,
-                            Technology = m.Student.Technology.name
+                            Technology = m.Student.Technology.name,
+                            gender = m.Student.gender
                         }).ToList(),
 
                         memberCount = g.GroupMembers.Count()

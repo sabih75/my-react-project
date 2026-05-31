@@ -35,7 +35,6 @@ export default function TaskList() {
 
  const {  groupId } = useParams();
   useEffect(() => {
-    alert(`Student ID: ${studentId}, Group ID: ${groupId}`);
     if (groupId && studentId) {
       fetchTasks();
     }
@@ -43,7 +42,6 @@ export default function TaskList() {
 
   const fetchTasks = async () => {
     try {
-      alert("hehe");
       setLoading(true);
 
       const res = await axios.get(
@@ -124,7 +122,6 @@ export default function TaskList() {
                     dueDate={task.dueDate}
                     status={task.status}
                     priority={task.priority}
-                    progress={task.progress}  // ✅ optional if UI supports
                     onClick={() => handleCardClick(task)}
                   />
                 ))
@@ -147,7 +144,6 @@ export default function TaskList() {
                     dueDate={task.dueDate}
                     status={task.status}
                     priority={task.priority}
-                    progress={task.progress}
                     onClick={() => handleCardClick(task)}
                   />
                 ))

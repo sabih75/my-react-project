@@ -24,7 +24,7 @@ setActiveFype(JSON.parse(Fyptype));
     },
     {
       label: "Groups",
-      path: `/committee/groups/FYP-1`,
+      path: `/committee/groups/${activeFyp}`,
       icon: <Users className="w-5 h-5" />,
     },
     {
@@ -33,11 +33,33 @@ setActiveFype(JSON.parse(Fyptype));
       icon: <Calendar className="w-5 h-5" />,
     },
     {
+      label: "General Task Eval",
+      path: "/committee/general-task-evaluation",
+      icon: <Users className="w-5 h-5" />,
+    },
+    {
+      label: "Supervisor Alloc",
+      path: "/committee/supervisor-allocation",
+      icon: <Users className="w-5 h-5" />,
+    },
+    {
       label: "Profile",
       path: "/committee/profile",
       icon: <User className="w-5 h-5" />,
     },
   ];
+
+  const visibleNavItems = navItems.filter((item) => {
+    // Show General Task Eval only for FYP-2
+    if (item.label === "General Task Eval" && activeFyp !== "FYP-2") {
+      return false;
+    }
+    // Show Supervisor Alloc only for FYP-1
+    if (item.label === "Supervisor Alloc" && activeFyp !== "FYP-1") {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -50,7 +72,7 @@ setActiveFype(JSON.parse(Fyptype));
         </h2>
 
         <nav className="space-y-2">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = location === item.path;
 
             return (
@@ -82,7 +104,7 @@ setActiveFype(JSON.parse(Fyptype));
       {/* ========== Mobile Bottom Navigation ========== */}
       <div className="fixed bottom-0 left-0 right-0 md:hidden bg-card border-t border-card-border flex justify-around py-2">
 
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const active = location === item.path;
 
           return (

@@ -11,6 +11,7 @@ using System.Web.Mvc;
 using System.Web.Routing;
 using HttpGetAttribute = System.Web.Http.HttpGetAttribute;
 using HttpPostAttribute = Microsoft.AspNetCore.Mvc.HttpPostAttribute;
+using System.Net.Http;
 using RouteAttribute = System.Web.Http.RouteAttribute;
 
 namespace ProgressMonitoringProject.Controllers
@@ -328,6 +329,10 @@ namespace ProgressMonitoringProject.Controllers
                         Description = t.taskDescription,
                         DueDate = t.dueDate,
                         TaskStatus = t.taskStatus,
+                        IsPptRequired = t.isPptRequired,
+                        SubmissionFilePath = db.TaskEvaluations.Where(te => te.taskID == t.id).Select(te => te.submissionFilePath).FirstOrDefault(),
+                        Score = db.TaskEvaluations.Where(te => te.taskID == t.id).Select(te => (int?)te.score).FirstOrDefault(),
+                        Remarks = db.TaskEvaluations.Where(te => te.taskID == t.id).Select(te => te.taskRemarks).FirstOrDefault(),
 
                         // 🔹 GROUP
                         GroupId = t.groupID,
@@ -561,6 +566,107 @@ namespace ProgressMonitoringProject.Controllers
         }
 
         [HttpGet]
+        [Route("get-committee-meetings/{groupId}")]
+        public IHttpActionResult GetCommitteeMeetings(int groupId)
+        {
+            try
+            {
+                var meetings = db.GroupSchedules
+                    .Where(gs => gs.groupID == groupId)
+                    .Select(gs => new
+                    {
+                        gs.id,
+                        MeetingId = gs.comiteeMeetingID,
+                        MeetingTitle = gs.ComiteeMeeting.title,
+                        Description = gs.ComiteeMeeting.meetingDescription,
+                        Date = gs.ComiteeMeeting.startDate,
+                        Venue = gs.ComiteeMeeting.venue,
+                        Status = gs.Status ?? "Scheduled",
+                        Time = gs.estimatedTime
+                    })
+                    .ToList()
+                    .Select(m => new
+                    {
+                        m.id,
+                        m.MeetingId,
+                        m.MeetingTitle,
+                        m.Description,
+                        Date = m.Date.HasValue ? m.Date.Value.ToString("yyyy-MM-dd") : "",
+                        m.Venue,
+                        m.Status,
+                        Time = m.Time.HasValue ? m.Time.Value.ToString() : "10:00"
+                    })
+                    .ToList();
+
+                return Ok(meetings);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpGet]
+        [Route("get-all-remarks-history/{groupId}")]
+        public IHttpActionResult GetAllRemarksHistory(int groupId)
+        {
+            try
+            {
+                // 1. Meeting Remarks
+                var meetingRemarks = db.SupervisorRemarks
+                    .Where(r => r.GroupID == groupId)
+                    .ToList()
+                    .Select(r => new
+                    {
+                        Type = "Meeting",
+                        Remarks = r.Remarks,
+                        Date = r.CreatedAt ?? DateTime.Now,
+                        Context = db.SuperVisorMeetings.Where(m => m.id == r.MeetingID).Select(m => m.title).FirstOrDefault() ?? "General Meeting",
+                        Target = r.StudentEnrollID == null 
+                            ? "Entire Group" 
+                            : db.Enrollments.Where(e => e.id == r.StudentEnrollID).Join(db.Students, e => e.studentID, s => s.regNum, (e, s) => s.name).FirstOrDefault() ?? "Individual Student"
+                    })
+                    .ToList();
+
+                // 2. Task Evaluation Remarks
+                var taskRemarks = (from t in db.Tasks
+                                   join te in db.TaskEvaluations on t.id equals te.taskID
+                                   where t.groupID == groupId && te.taskRemarks != null && te.taskRemarks != ""
+                                   select new
+                                   {
+                                       Type = "Task",
+                                       Remarks = te.taskRemarks,
+                                       Date = te.submissionDate ?? DateTime.Now,
+                                       Context = t.title,
+                                       Target = t.studentID == null 
+                                           ? "Entire Group" 
+                                           : db.Students.Where(s => s.regNum == t.studentID).Select(s => s.name).FirstOrDefault() ?? "Individual Student"
+                                   })
+                                   .ToList()
+                                   .Select(tr => new
+                                   {
+                                       Type = tr.Type,
+                                       Remarks = tr.Remarks,
+                                       Date = tr.Date,
+                                       Context = tr.Context,
+                                       Target = tr.Target
+                                   })
+                                   .ToList();
+
+                var allRemarks = meetingRemarks
+                    .Concat(taskRemarks)
+                    .OrderByDescending(r => r.Date)
+                    .ToList();
+
+                return Ok(allRemarks);
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpGet]
         [Route("get-remarks-history/{groupId}/{studentEnrollId?}")]
         public IHttpActionResult GetRemarksHistory(int groupId, int? studentEnrollId = null)
         {
@@ -716,6 +822,40 @@ namespace ProgressMonitoringProject.Controllers
                     db.RecurringMeetingDays.AddRange(recurringDays);
                     await db.SaveChangesAsync();
                 }
+
+                // 🔔 Notify Students about Supervisor Meeting
+                try
+                {
+                    var notification = new ProgressMonitoringProject.Models.Notification
+                    {
+                        Title = "New Supervisor Meeting Scheduled",
+                        Message = $"Your supervisor has scheduled a meeting: {request.Title} starting on {request.StartDate:dd MMM yyyy} at {request.Time}",
+                        Type = "SupervisorMeeting",
+                        ReferenceID = firstMeeting?.id ?? 0,
+                        CreatedAt = DateTime.Now,
+                        SenderID = request.SupervisorId,
+                        SenderRole = "Supervisor"
+                    };
+                    db.Notifications.Add(notification);
+                    db.SaveChanges();
+
+                    var recipients = !string.IsNullOrEmpty(request.MemberId) 
+                        ? new List<string> { request.MemberId }
+                        : db.GroupMembers.Where(gm => gm.groupID == request.GroupId).Select(gm => gm.studentID).ToList();
+
+                    foreach (var sid in recipients)
+                    {
+                        db.NotificationRecipients.Add(new ProgressMonitoringProject.Models.NotificationRecipient
+                        {
+                            NotificationID = notification.NotificationID,
+                            RecipientID = sid,
+                            RecipientRole = "Student",
+                            IsRead = 0
+                        });
+                    }
+                    db.SaveChanges();
+                }
+                catch { }
 
                 return Ok(new
                 {
@@ -1120,7 +1260,7 @@ namespace ProgressMonitoringProject.Controllers
                 var task = db.Tasks.FirstOrDefault(t => t.id == model.TaskId);
                 if (task != null)
                 {
-                    task.taskStatus = score == 100 ? "Completed" : "In Progress";
+                    task.taskStatus = (model.ProgressStatus == "Complete" || score == 100) ? "Completed" : "In Progress";
                 }
 
                 db.SaveChanges();
@@ -1221,6 +1361,135 @@ namespace ProgressMonitoringProject.Controllers
             public string FilePath { get; set; } // store path only
         }
 
+        [HttpPost]
+        [Route("upload-task-ppt")]
+        public IHttpActionResult UploadTaskPpt()
+        {
+            if (!Request.Content.IsMimeMultipartContent())
+                return BadRequest("Invalid format. Use multipart/form-data.");
 
+            try
+            {
+                var httpRequest = System.Web.HttpContext.Current.Request;
+                int taskId = Convert.ToInt32(httpRequest["taskId"]);
+                
+                var task = db.Tasks.Find(taskId);
+                if (task == null) return NotFound();
+
+                var postedFile = httpRequest.Files["file"];
+                if (postedFile == null)
+                    return BadRequest("File is required.");
+
+                string folderPath = System.Web.HttpContext.Current.Server.MapPath("~/Uploads/Tasks/");
+                if (!System.IO.Directory.Exists(folderPath))
+                    System.IO.Directory.CreateDirectory(folderPath);
+
+                string fileName = $"{taskId}_{DateTime.Now.Ticks}{System.IO.Path.GetExtension(postedFile.FileName)}";
+                string filePath = System.IO.Path.Combine(folderPath, fileName);
+                postedFile.SaveAs(filePath);
+
+                string virtualPath = $"/Uploads/Tasks/{fileName}";
+
+                var evaluation = db.TaskEvaluations.FirstOrDefault(e => e.taskID == taskId);
+                if (evaluation == null)
+                {
+                    evaluation = new TaskEvaluation
+                    {
+                        taskID = taskId,
+                        submissionFilePath = virtualPath,
+                        submissionDate = DateTime.Now,
+                        progressStatus = "Submitted",
+                        score = 0
+                    };
+                    db.TaskEvaluations.Add(evaluation);
+                }
+                else
+                {
+                    evaluation.submissionFilePath = virtualPath;
+                    evaluation.submissionDate = DateTime.Now;
+                    if (evaluation.progressStatus == "Not Started" || string.IsNullOrEmpty(evaluation.progressStatus))
+                    {
+                        evaluation.progressStatus = "Submitted";
+                    }
+                }
+
+                // If task status was "Pending", upgrade to "Submitted" or "In Progress"
+                if (task.taskStatus == "Pending")
+                {
+                    task.taskStatus = "In Progress";
+                }
+
+                db.SaveChanges();
+
+                return Ok(new { message = "Task PPT uploaded successfully", filePath = virtualPath });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+
+        [HttpPost]
+        [Route("suggest-project")]
+        public async Task<IHttpActionResult> SuggestProject([System.Web.Http.FromBody] ProjectSuggestionDto model)
+        {
+            if (model == null || string.IsNullOrWhiteSpace(model.Title))
+            {
+                return BadRequest("Invalid project data");
+            }
+
+            try
+            {
+                // 1. Get the current active session ID
+                var currentSession = await db.Sessions
+                    .OrderByDescending(s => s.id)
+                    .FirstOrDefaultAsync();
+
+                if (currentSession == null)
+                {
+                    return BadRequest("No active session found.");
+                }
+
+                // 2. Create the Project record
+                var project = new Project
+                {
+                    title = model.Title,
+                    suggestedBy = model.SupervisorId,
+                    projectStatus = model.ProjectStatus ?? true,
+                    objectives = model.Objectives
+                };
+
+                db.Projects.Add(project);
+                await db.SaveChangesAsync();
+
+                // 3. Link the Project to the current session in OfferedProjects
+                var offeredProject = new OfferedProject
+                {
+                    sessionID = currentSession.id,
+                    projectID = project.id
+                };
+
+                db.OfferedProjects.Add(offeredProject);
+                await db.SaveChangesAsync();
+
+                return Ok(new { 
+                    message = "Project suggested successfully", 
+                    projectId = project.id, 
+                    offeredProjectId = offeredProject.id 
+                });
+            }
+            catch (Exception ex)
+            {
+                return InternalServerError(ex);
+            }
+        }
+    }
+
+    public class ProjectSuggestionDto
+    {
+        public string Title { get; set; }
+        public string Objectives { get; set; }
+        public string SupervisorId { get; set; }
+        public bool? ProjectStatus { get; set; }
     }
 }

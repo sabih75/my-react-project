@@ -2,19 +2,23 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Save, MessageSquare, Award, User, Target, ClipboardList, PenTool, CheckCircle } from "lucide-react";
+import { Save, MessageSquare, Award, User, Target, ClipboardList, PenTool, CheckCircle, Clock } from "lucide-react";
 
 import CommitteeLayout from "./CommitteeLayout";
+import SupervisorLayout from "../supervisor/SupervisorLayout";
 
 const API = "http://localhost/ProgressMonitoringProject/api";
 
 export default function EvaluationScreen() {
   const { meetingId, groupId, parameterId, activeFYP } = useParams();
+  const [location] = useLocation();
+  const isSupervisorSide = location.startsWith("/supervisor");
+  const Layout = isSupervisorSide ? SupervisorLayout : CommitteeLayout;
 
   const SCORE_API = activeFYP?.toLowerCase() === "fyp-2" ? "fyp2-scores" : "fyp1-scores";
   const IS_FYP2 = activeFYP?.toLowerCase() === "fyp-2";
@@ -30,6 +34,8 @@ export default function EvaluationScreen() {
   const [savingRemark, setSavingRemark] = useState(false);
   const [remarkMeta, setRemarkMeta] = useState({});
   const [savingIndividual, setSavingIndividual] = useState({});
+  const [groupInfo, setGroupInfo] = useState({});
+  const [evaluationStatus, setEvaluationStatus] = useState({});
 
   const getKey = (s) => (s.EnrollmentID && s.EnrollmentID !== 0 ? `E-${s.EnrollmentID}` : `S-${s.StudentID}`);
 
@@ -52,9 +58,23 @@ export default function EvaluationScreen() {
       const studentData = groupRes.data || [];
       setStudents(studentData);
 
-      const res = await axios.get(`${API}/${SCORE_API}/evaluation-panel/${meetingId}`);
-      const panelData = res.data;
-      const param = panelData.parameters.find((p) => p.id == parameterId);
+      if (IS_FYP2) {
+        const groupDetailRes = await axios.get(`${API}/fyp2-scores/groups/${groupId}`).catch(() => ({ data: {} }));
+        setGroupInfo(groupDetailRes.data || {});
+      }
+
+      let param = null;
+      if (meetingId === "0" || meetingId === 0 || !meetingId) {
+        const sessionRes = await axios.get(`${API}/users/CurrentSession`);
+        const currentSessionId = sessionRes.data?.id || 1;
+        const criteriaRes = await axios.get(`${API}/${SCORE_API}/available-criteria/${currentSessionId}`);
+        const allParams = criteriaRes.data || [];
+        param = allParams.find((p) => p.id == parameterId);
+      } else {
+        const res = await axios.get(`${API}/${SCORE_API}/evaluation-panel/${meetingId}`);
+        const panelData = res.data;
+        param = panelData.parameters.find((p) => p.id == parameterId);
+      }
 
       setParameter(param || null);
       setSubParams(param?.subParameters || []);
@@ -64,25 +84,52 @@ export default function EvaluationScreen() {
         initialMarks[getKey(s)] = {};
       });
 
-      if (currentUserId) {
-        try {
-          const savedMarksUrl = IS_FYP2 
-            ? `${API}/${SCORE_API}/get-saved-marks/${parameterId}/${currentUserId}`
-            : `${API}/${SCORE_API}/get-saved-marks/${meetingId}/${parameterId}/${currentUserId}`;
-          const savedMarksRes = await axios.get(savedMarksUrl);
-          const savedList = savedMarksRes.data || [];
-          savedList.forEach((item) => {
-            const studentKey = `E-${item.studentEnrollID}`;
-            if (!initialMarks[studentKey]) {
-              initialMarks[studentKey] = {};
-            }
-            initialMarks[studentKey][item.subParameterID] = item.obtainedMarks !== null ? item.obtainedMarks : "";
-          });
-        } catch (e) {
-          console.error("Error fetching saved marks: ", e);
-        }
+      let allEvaluatorsMarks = [];
+      if (param) {
+        const allMarksRes = await axios.get(`${API}/${SCORE_API}/get-all-saved-marks/${param.id}`).catch(() => ({ data: [] }));
+        allEvaluatorsMarks = allMarksRes.data || [];
       }
 
+      const evalStatusMap = {};
+
+      if (currentUserId) {
+        studentData.forEach((s) => {
+          const studentKey = getKey(s);
+          const globalMarksForStudent = allEvaluatorsMarks.filter(m => m.studentEnrollID === s.EnrollmentID);
+
+          const myMarks = globalMarksForStudent.filter(m => String(m.evaluatorID) === String(currentUserId));
+
+          // Only committee members can lock out other committee members. Director/CommitteeHead evaluations are ignored here.
+          const committeeMarks = globalMarksForStudent.filter(m =>
+            String(m.evaluatorID) !== String(currentUserId) &&
+            m.evaluatorRole !== "Director" &&
+            m.evaluatorRole !== "CommitteeHead"
+          );
+
+          if (myMarks.length > 0) {
+            const evaluatorId = myMarks[0].evaluatorID;
+            evalStatusMap[studentKey] = {
+              isEvaluated: true,
+              evaluatorId: evaluatorId,
+              isEvaluatedByMe: true
+            };
+            myMarks.forEach(item => {
+              initialMarks[studentKey][item.subParameterID] = item.obtainedMarks !== null ? item.obtainedMarks : "";
+            });
+          } else if (committeeMarks.length > 0) {
+            const evaluatorId = committeeMarks[0].evaluatorID;
+            evalStatusMap[studentKey] = {
+              isEvaluated: true,
+              evaluatorId: evaluatorId,
+              isEvaluatedByMe: false
+            };
+          } else {
+            evalStatusMap[studentKey] = { isEvaluated: false };
+          }
+        });
+      }
+
+      setEvaluationStatus(evalStatusMap);
       setMarks(initialMarks);
     } catch (err) {
       console.log(err);
@@ -101,7 +148,7 @@ export default function EvaluationScreen() {
     try {
       const res = await axios.get(`${API}/${SCORE_API}/get-remarks/${student.EnrollmentID}/${loggedInUser}/${student.sessionID}`);
       const list = Array.isArray(res.data) ? res.data : [];
-      
+
       let selectedRemark = null;
 
       // For FYP-1, try to find an exact match by meetingID. For FYP-2, there is no meetingID, so this will be skipped.
@@ -145,6 +192,12 @@ export default function EvaluationScreen() {
 
   const saveRemarks = async (student) => {
     const key = getKey(student);
+    const evalStat = evaluationStatus[key] || {};
+    if (evalStat.isEvaluated && !evalStat.isEvaluatedByMe) {
+      alert("This student is already evaluated by another member.");
+      return;
+    }
+
     const remarkText = remarks[key];
 
     if (!remarkText?.trim()) {
@@ -172,6 +225,11 @@ export default function EvaluationScreen() {
 
   const saveIndividualMarks = async (student) => {
     const key = getKey(student);
+    const evalStat = evaluationStatus[key] || {};
+    if (evalStat.isEvaluated && !evalStat.isEvaluatedByMe) {
+      alert("This student is already evaluated by another member.");
+      return;
+    }
 
     // Validation check: obtained score cannot exceed max marks
     let hasError = false;
@@ -187,7 +245,7 @@ export default function EvaluationScreen() {
     if (hasError) return;
 
     const payload = [];
-    
+
     subParams.forEach((sp) => {
       const val = marks?.[key]?.[sp.id];
       const basePayload = {
@@ -240,8 +298,12 @@ export default function EvaluationScreen() {
 
     const payload = [];
     students.forEach((s) => {
+      const key = getKey(s);
+      const evalStat = evaluationStatus[key] || {};
+      if (evalStat.isEvaluated && !evalStat.isEvaluatedByMe) return; // Skip locked
+
       subParams.forEach((sp) => {
-        const val = marks?.[getKey(s)]?.[sp.id];
+        const val = marks?.[key]?.[sp.id];
         const basePayload = {
           EnrollmentID: s.EnrollmentID,
           ParameterID: Number(parameterId),
@@ -261,7 +323,7 @@ export default function EvaluationScreen() {
     });
 
     try {
-      alert("Saving marks..."); 
+      alert("Saving marks...");
       const res = await axios.post(`${API}/${SCORE_API}/update-evaluation-marks`, payload, {
         headers: { "Content-Type": "application/json" },
       });
@@ -273,33 +335,52 @@ export default function EvaluationScreen() {
   };
 
   return (
-    <CommitteeLayout>
+    <Layout>
       <div className="min-h-screen bg-muted/30 p-6 space-y-6">
-        
+
         {/* HEADER CARD */}
-        <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-              <ClipboardList className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">
-                Evaluation Panel
-              </h2>
-              <div className="flex items-center gap-3 mt-1">
-                <Badge variant="outline" className="bg-background text-xs font-medium uppercase">
-                  {activeFYP}
-                </Badge>
-                <span className="text-sm text-muted-foreground flex items-center gap-1">
-                  <Target className="w-4 h-4" /> {parameter?.name || "Loading Parameter..."}
-                </span>
+        <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-2xl p-6 flex flex-col shadow-sm">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                <ClipboardList className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">
+                  Evaluation Panel
+                </h2>
+                <div className="flex items-center gap-3 mt-1">
+                  <Badge variant="outline" className="bg-background text-xs font-medium uppercase">
+                    {activeFYP}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground flex items-center gap-1">
+                    <Target className="w-4 h-4" /> {parameter?.name || "Loading Parameter..."}
+                  </span>
+                </div>
               </div>
             </div>
+            <Badge className="px-4 py-2 text-sm bg-primary text-primary-foreground flex items-center gap-2">
+              <Award className="w-4 h-4" />
+              {parameter?.percentage}% Weightage
+            </Badge>
           </div>
-          <Badge className="px-4 py-2 text-sm bg-primary text-primary-foreground flex items-center gap-2">
-            <Award className="w-4 h-4" />
-            {parameter?.percentage}% Weightage
-          </Badge>
+
+          {IS_FYP2 && groupInfo.projectName && (
+            <div className="mt-5 pt-5 border-t border-primary/10 grid md:grid-cols-2 gap-6">
+              <div>
+                <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider">Project Title</p>
+                <p className="font-semibold text-foreground mt-1.5">{groupInfo.projectName}</p>
+              </div>
+              <div>
+                <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider">Director Assigned Task</p>
+                <p className="text-sm font-medium text-foreground bg-background/60 p-3 rounded-xl border border-primary/10 mt-1.5 italic leading-relaxed">
+                  {parameter?.name?.toLowerCase().includes("mid")
+                    ? groupInfo.midTask || "No MidTask details assigned."
+                    : groupInfo.finalTask || "No Final Task details assigned."}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* CONTENT */}
@@ -314,10 +395,12 @@ export default function EvaluationScreen() {
               {students.map((s) => {
                 const key = getKey(s);
                 const isOpen = openRemark === key;
+                const evalStat = evaluationStatus[key] || {};
+                const isLocked = evalStat.isEvaluated && !evalStat.isEvaluatedByMe;
 
                 return (
-                  <Card key={key} className="overflow-hidden border-border/50 shadow-sm hover:shadow-md transition-shadow">
-                    
+                  <Card key={key} className={`overflow-hidden border-border/50 shadow-sm transition-shadow ${isLocked ? "opacity-80" : "hover:shadow-md"}`}>
+
                     {/* STUDENT HEADER */}
                     <div className="bg-muted/30 px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b">
                       <div className="flex items-center gap-3">
@@ -325,7 +408,14 @@ export default function EvaluationScreen() {
                           <User className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                          <p className="text-lg font-semibold text-foreground">{s.StudentName}</p>
+                          <p className="text-lg font-semibold text-foreground flex items-center gap-3">
+                            {s.StudentName}
+                            {isLocked && (
+                              <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px]">
+                                Evaluated by Committee Member
+                              </Badge>
+                            )}
+                          </p>
                           <p className="text-sm text-muted-foreground font-medium">CGPA: {s.currentCGPA}</p>
                         </div>
                       </div>
@@ -334,6 +424,7 @@ export default function EvaluationScreen() {
                         variant={isOpen ? "secondary" : "outline"}
                         size="sm"
                         onClick={() => loadRemarks(s)}
+                        disabled={isLocked}
                         className="flex items-center gap-2"
                       >
                         {isOpen ? (
@@ -351,7 +442,7 @@ export default function EvaluationScreen() {
                       {subParams.length > 0 ? (
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                           {subParams.map((sp) => (
-                            <div key={sp.id} className="bg-background border rounded-xl p-4 flex flex-col gap-3 group hover:border-primary/50 transition-colors">
+                            <div key={sp.id} className={`bg-background border rounded-xl p-4 flex flex-col gap-3 group transition-colors ${isLocked ? "opacity-60 bg-muted/20" : "hover:border-primary/50"}`}>
                               <div className="flex justify-between items-start gap-2">
                                 <p className="font-medium text-sm leading-tight text-foreground line-clamp-2" title={sp.name}>
                                   {sp.name}
@@ -365,7 +456,8 @@ export default function EvaluationScreen() {
                                   placeholder="0"
                                   min="0"
                                   max={sp.percentage}
-                                  className="border bg-muted/20 p-2 rounded-lg w-20 text-center font-semibold text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+                                  disabled={isLocked}
+                                  className="border bg-muted/20 p-2 rounded-lg w-20 text-center font-semibold text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all disabled:opacity-50"
                                   value={marks?.[key]?.[sp.id] || ""}
                                   onChange={(e) => handleChange(key, sp.id, e.target.value)}
                                 />
@@ -381,7 +473,7 @@ export default function EvaluationScreen() {
                       )}
 
                       {/* REMARKS SECTION */}
-                      {isOpen && (
+                      {isOpen && !isLocked && (
                         <div className="mt-6 border-t pt-6 animate-in slide-in-from-top-2">
                           <div className="flex items-center justify-between mb-3">
                             <label className="text-sm font-semibold flex items-center gap-2 text-foreground">
@@ -395,7 +487,7 @@ export default function EvaluationScreen() {
                               </div>
                             )}
                           </div>
-                          
+
                           <textarea
                             rows={4}
                             placeholder="Provide constructive feedback for this student..."
@@ -422,18 +514,20 @@ export default function EvaluationScreen() {
                       )}
 
                       {/* INDIVIDUAL EVALUATION SAVE ACTION */}
-                      <div className="mt-6 pt-4 border-t flex justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="bg-primary/5 border-primary/20 text-primary hover:bg-primary hover:text-primary-foreground font-semibold flex items-center gap-2"
-                          onClick={() => saveIndividualMarks(s)}
-                          disabled={savingIndividual[key]}
-                        >
-                          <Save className="w-4 h-4" />
-                          {savingIndividual[key] ? "Saving..." : `Save Marks for ${s.StudentName}`}
-                        </Button>
-                      </div>
+                      {!isLocked && (
+                        <div className="mt-6 pt-4 border-t flex justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="bg-primary/5 border-primary/20 text-primary hover:bg-primary hover:text-primary-foreground font-semibold flex items-center gap-2"
+                            onClick={() => saveIndividualMarks(s)}
+                            disabled={savingIndividual[key]}
+                          >
+                            <Save className="w-4 h-4" />
+                            {savingIndividual[key] ? "Saving..." : `Save Marks for ${s.StudentName}`}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </Card>
                 );
@@ -456,6 +550,6 @@ export default function EvaluationScreen() {
           )}
         </div>
       </div>
-    </CommitteeLayout>
+    </Layout>
   );
 }

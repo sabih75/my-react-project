@@ -44,6 +44,8 @@ export default function SupervisorTasks() {
 
     const grouped = {};
     const statusMap = {};
+    const remarksMap = {};
+    const scoresMap = {};
 
     (res.data || []).forEach((t) => {
       if (!grouped[t.GroupId]) {
@@ -68,9 +70,13 @@ export default function SupervisorTasks() {
         dueDate: t.DueDate,
         status,
         studentName: t.StudentName,
+        isPptRequired: t.IsPptRequired,
+        submissionFilePath: t.SubmissionFilePath,
       };
 
       statusMap[t.Id] = status;
+      remarksMap[t.Id] = t.Remarks || "";
+      scoresMap[t.Id] = t.Score !== undefined && t.Score !== null ? t.Score.toString() : "";
 
       if (!t.StudentId) grouped[t.GroupId].groupTask = task;
       else grouped[t.GroupId].individualTasks.push(task);
@@ -78,6 +84,8 @@ export default function SupervisorTasks() {
 
     setGroups(Object.values(grouped));
     setTaskStatus(statusMap);
+    setRemarks(remarksMap);
+    setScores(scoresMap);
   };
 
   // ================= SAVE EVALUATION =================
@@ -195,7 +203,32 @@ export default function SupervisorTasks() {
                 <p className="font-semibold">
                   {task.studentName || "Group Task"}
                 </p>
-                <p>{task.title}</p>
+                <p className="text-sm font-semibold">{task.title}</p>
+
+                {task.isPptRequired && (
+                  <div className="mt-3 p-3 bg-muted/40 rounded-lg border text-xs space-y-2">
+                    <span className="font-bold text-muted-foreground uppercase tracking-wider block">PPT Presentation:</span>
+                    {task.submissionFilePath ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                          ✅ Submitted Presentation PPT
+                        </span>
+                        <a
+                          href={`http://localhost/ProgressMonitoringProject${task.submissionFilePath}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-3 rounded text-[11px] transition shadow-sm"
+                        >
+                          View / Download PPT
+                        </a>
+                      </div>
+                    ) : (
+                      <span className="text-amber-600 italic">
+                        ⏳ Student has not uploaded the PPT yet.
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 <StatusRadios id={task.id} />
 
@@ -211,18 +244,25 @@ export default function SupervisorTasks() {
                   }
                 />
 
-                <input
-                  type="number"
-                  placeholder="Score (optional)"
-                  className="w-full mt-2 border rounded p-2"
-                  value={scores[task.id] || ""}
-                  onChange={(e) =>
-                    setScores((p) => ({
-                      ...p,
-                      [task.id]: e.target.value,
-                    }))
-                  }
-                />
+                <div className="mt-2 space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground block">
+                    Obtained Score (Out of 100)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    placeholder="Score (0 - 100)"
+                    className="w-full border rounded p-2"
+                    value={scores[task.id] || ""}
+                    onChange={(e) =>
+                      setScores((p) => ({
+                        ...p,
+                        [task.id]: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
 
                 <Button
                   className="w-full mt-3"

@@ -27,7 +27,7 @@ export default function CommitteeDashboard() {
 
   const allQuickActions = [
     { label: "Student Selection", path: "/committee/student-selection", icon: GraduationCap, fyp: ["FYP-1", "FYP-2"] },
-    { label: "Allocate Supervisors", path: "/committee/allocation", icon: UserCheck, fyp: ["FYP-1"] },
+    { label: "Allocate Supervisors", path: "/committee/supervisor-allocation", icon: UserCheck, fyp: ["FYP-1"] },
     { label: "View Groups", path: `/committee/groups/${activeFYP}`, icon: Users, fyp: ["FYP-1", "FYP-2"] },
     { label: "Schedule Meeting", path: "/committee/schedule-meeting", icon: CalendarPlus, fyp: ["FYP-1", "FYP-2"] },
     { label: "My Meetings", path: "/committee/my-meetings", icon: CalendarPlus, fyp: ["FYP-1", "FYP-2"] },
@@ -36,6 +36,7 @@ export default function CommitteeDashboard() {
     { label: "Meeting Queue", path: "/committee/meeting-queue", icon: Clock, fyp: ["FYP-1", "FYP-2"] },
     { label: "Create Semester Agenda", path: "/committee/create-semester-agenda", icon: CalendarPlus, fyp: ["FYP-1", "FYP-2"] },
     { label: "Final Task Evaluation", path: "/committee/final-evaluation", icon: CheckSquare, fyp: ["FYP-2"] },
+    { label: "General Task Eval", path: "/committee/general-task-evaluation", icon: CheckSquare, fyp: ["FYP-2"] },
   ];
 
   const groups = [

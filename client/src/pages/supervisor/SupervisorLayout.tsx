@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { useLocation } from "wouter";
-import { LayoutDashboard, Users, Calendar, User } from "lucide-react";
+import { LayoutDashboard, Users, Calendar, User, Lightbulb } from "lucide-react";
 
 interface Props {
   children: ReactNode;
@@ -26,6 +26,11 @@ export default function SupervisorLayout({ children }: Props) {
       icon: <Users className="w-5 h-5" />,
     },
     {
+      label: "Suggest Project",
+      path: "/supervisor/suggest-project",
+      icon: <Lightbulb className="w-5 h-5 text-amber-500" />,
+    },
+    {
       label: "Schedule Meeting",
       path: "/supervisor/schedule-meetings",
       icon: <Calendar className="w-5 h-5" />,
@@ -38,6 +43,12 @@ export default function SupervisorLayout({ children }: Props) {
     {
       label: "Groups Attendance",
       path: "/supervisor/group-attendance",
+      icon: <Users className="w-5 h-5" />,
+    },
+
+    {
+      label: "General Task Eval",
+      path: "/supervisor/general-task-evaluation",
       icon: <Users className="w-5 h-5" />,
     },
     {
@@ -66,10 +77,9 @@ export default function SupervisorLayout({ children }: Props) {
                 key={item.path}
                 onClick={() => setLocation(item.path)}
                 className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg transition
-                  ${
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-accent"
+                  ${active
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-accent"
                   }`}
               >
                 {item.icon}
@@ -98,10 +108,9 @@ export default function SupervisorLayout({ children }: Props) {
               key={item.path}
               onClick={() => setLocation(item.path)}
               className={`flex flex-col items-center text-xs transition
-                ${
-                  active
-                    ? "text-primary"
-                    : "text-muted-foreground"
+                ${active
+                  ? "text-primary"
+                  : "text-muted-foreground"
                 }`}
             >
               {item.icon}

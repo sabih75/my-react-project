@@ -1,4 +1,4 @@
-﻿using ProgressMonitoringProject.Models;
+using ProgressMonitoringProject.Models;
 using System;
 using System.Collections.Generic;
 using System.Data.Entity;
@@ -121,6 +121,7 @@ namespace ProgressMonitoringProject.Controllers
 
                 SectionId = s.Section.id,
                 SectionName = s.Section.name,
+                semesterNo = s.semesterNo,
                 Subject = db.Enrollments.Where(e => e.studentID == s.regNum && e.sessionID == db.Sessions.OrderByDescending(o => o.id).Select(x => x.id).FirstOrDefault()).Select(a => a.subject).FirstOrDefault()
 
 
@@ -158,9 +159,10 @@ public async Task<IHttpActionResult> GetStudentsByTech(string techName, string r
             TechnologyName = s.Technology.name,
 
             SessionId = s.Session.id,
-            SessionName = s.Session.name
-
-          
+            SessionName = s.Session.name,
+            SectionId = s.Section.id,
+            SectionName = s.Section.name,
+            semesterNo = s.semesterNo
         })
         .ToListAsync();
 
@@ -378,6 +380,22 @@ public async Task<IHttpActionResult> GetStudentsByTech(string techName, string r
 
             return Ok(list);
 
+        }
+
+        [HttpGet]
+        [Route("getAllSections")]
+        public async Task<IHttpActionResult> getAllSections()
+        {
+            var list = await db.Sections
+                .Select(x => new
+                {
+                    id = x.id,
+                    name = x.name
+                })
+                .Distinct()
+                .ToListAsync();
+
+            return Ok(list);
         }
 
 
